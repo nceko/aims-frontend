@@ -27,8 +27,26 @@ export function errorMessage(error: unknown, fallback = 'Terjadi kesalahan.'): s
     const response = (error as { response?: { data?: unknown } }).response
     const data = response?.data
     if (data && typeof data === 'object') {
-      const value = data as { message?: string; error?: string; detail?: string }
-      return value.message || value.error || value.detail || fallback
+      const value = data as {
+        code?: string
+        message?: string
+        error?: unknown
+        detail?: string
+        details?: unknown
+      }
+      const detail =
+        typeof value.details === 'string'
+          ? value.details
+          : Array.isArray(value.details)
+            ? value.details.map(String).join(', ')
+            : value.details && typeof value.details === 'object'
+              ? Object.values(value.details as Record<string, unknown>)
+                  .map(String)
+                  .join(', ')
+              : ''
+      const nestedError = typeof value.error === 'string' ? value.error : ''
+      const message = value.message || nestedError || value.detail || detail || fallback
+      return value.code ? `${message} (${value.code})` : message
     }
     if ('message' in error && typeof (error as { message: unknown }).message === 'string') {
       return (error as { message: string }).message

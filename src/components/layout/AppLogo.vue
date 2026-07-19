@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import brandMark from '@/assets/images/aims-brand-mark.png'
+
 withDefaults(defineProps<{ compact?: boolean; inverse?: boolean }>(), {
   compact: false,
   inverse: false,
@@ -10,9 +12,10 @@ withDefaults(defineProps<{ compact?: boolean; inverse?: boolean }>(), {
     class="app-logo"
     :class="{ 'app-logo--compact': compact, 'app-logo--inverse': inverse }"
     to="/"
+    aria-label="AIMS - Aset & Inventory Management System"
   >
     <span class="app-logo__mark" aria-hidden="true">
-      <span>A</span>
+      <img :src="brandMark" alt="" />
     </span>
     <span v-if="!compact" class="app-logo__copy">
       <strong>AIMS</strong>

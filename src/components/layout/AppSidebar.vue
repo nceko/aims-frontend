@@ -10,13 +10,20 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const openGroups = ref(new Set<string>(['Master Data']))
 
+function allowed(item: NavItem): boolean {
+  if (item.superAdminOnly && !auth.isSuperAdmin) return false
+  if (item.permissionAny?.length)
+    return item.permissionAny.some((permission) => auth.can(permission))
+  return auth.can(item.permission)
+}
+
 const visibleItems = computed(() =>
   navigation
     .map((item) => ({
       ...item,
-      children: item.children?.filter((child) => auth.can(child.permission)),
+      children: item.children?.filter(allowed),
     }))
-    .filter((item) => auth.can(item.permission) && (!item.children || item.children.length > 0)),
+    .filter((item) => allowed(item) && (!item.children || item.children.length > 0)),
 )
 
 function toggle(item: NavItem) {

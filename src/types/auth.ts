@@ -1,4 +1,5 @@
 export interface CompanyOption {
+  id_company?: number
   company_id?: number
   id?: number
   company_code?: string
@@ -17,7 +18,7 @@ export interface AccessOption {
 export interface UserProfile {
   user_id?: string
   id?: string
-  email: string
+  email?: string
   full_name?: string
   name?: string
   roles?: string[]
@@ -28,17 +29,24 @@ export interface UserProfile {
   location_name?: string
   category_group_id?: number
   category_group_name?: string
+  location_type_code?: string
+  is_central_location?: boolean
+  is_global_super_admin?: boolean
+  has_context?: boolean
 }
 
-export interface InitialLoginResponse {
+export interface InitialLoginResponse extends UserProfile {
   access_token: string
   token_type?: string
   expires_in?: number
-  user?: UserProfile
+  need_context?: boolean
   locations?: AccessOption[]
   category_groups?: AccessOption[]
 }
 
-export interface SessionResponse extends InitialLoginResponse {
+export interface SessionResponse extends UserProfile {
+  access_token: string
   refresh_token: string
+  token_type?: string
+  expires_in?: number
 }

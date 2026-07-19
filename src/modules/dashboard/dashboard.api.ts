@@ -2,15 +2,30 @@ import { endpoints } from '@/config/endpoints'
 import { apiClient } from '@/services/api-client'
 
 export interface DashboardSummary {
-  total_items?: number
-  total_assets?: number
-  total_stock?: number
-  low_stock_count?: number
-  pending_approvals?: number
-  in_transit_count?: number
+  total_items?: number | string
+  total_stock_qty?: number | string
+  out_of_stock_count?: number | string
+  transactions_today?: number | string
+  low_stock_count?: number | string
+  in_transit_count?: number | string
+  pending_request_count?: number | string
+  open_complaint_count?: number | string
 }
-
+export interface AssetSummary {
+  total_assets?: number
+  available_assets?: number
+  assigned_assets?: number
+  maintenance_assets?: number
+  lost_assets?: number
+  disposed_assets?: number
+}
 export const dashboardApi = {
   summary: () => apiClient.get<DashboardSummary>(endpoints.dashboard.summary),
-  pendingActions: () => apiClient.get<unknown>(endpoints.dashboard.pendingActions),
+  assets: () => apiClient.get<AssetSummary>('/api/v1/assets/summary'),
+  pendingActions: () =>
+    apiClient.get<Record<string, number | string>>(endpoints.dashboard.pendingActions),
+  stockByLocation: () =>
+    apiClient.get<Record<string, unknown>[]>(endpoints.dashboard.stockByLocation),
+  movementTrend: () => apiClient.get<Record<string, unknown>[]>(endpoints.dashboard.movementTrend),
+  audit: () => apiClient.get<Record<string, unknown>>(endpoints.dashboard.audit),
 }

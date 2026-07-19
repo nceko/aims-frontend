@@ -14,6 +14,7 @@ export const endpoints = {
     stockByLocation: '/api/v1/dashboard/stock-by-location',
     movementTrend: '/api/v1/dashboard/movement-trend',
     pendingActions: '/api/v1/dashboard/pending-actions',
+    audit: '/api/v1/dashboard/audit',
   },
   master: {
     companies: '/api/v1/companies',
