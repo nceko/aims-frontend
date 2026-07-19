@@ -1,0 +1,15 @@
+services:
+  aims-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aims-frontend:local
+    container_name: aims-frontend
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_PORT:-3000}:80'
+    environment:
+      APP_NAME: '${APP_NAME:-AIMS}'
+      APP_FULL_NAME: '${APP_FULL_NAME:-Aset & Inventory Management System}'
+      API_BASE_URL: '${API_BASE_URL:-http://localhost:8080}'
+      API_TIMEOUT: '${API_TIMEOUT:-30000}'

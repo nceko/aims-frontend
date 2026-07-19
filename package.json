@@ -1,0 +1,39 @@
+{
+  "name": "aims-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AIMS - Aset & Inventory Management System",
+  "type": "module",
+  "packageManager": "npm@11.6.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": "11.6.0"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "npm run type-check && npm run build-only",
+    "build-only": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "type-check": "vue-tsc --build --force",
+    "test": "node --test tests/*.test.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "ci": "npm run format:check && npm run type-check && npm test && npm run build-only"
+  },
+  "dependencies": {
+    "axios": "1.18.1",
+    "pinia": "3.0.4",
+    "vue": "3.5.40",
+    "vue-router": "4.6.4",
+    "@lucide/vue": "1.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@vitejs/plugin-vue": "6.0.8",
+    "prettier": "3.7.4",
+    "sass": "1.97.3",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vue-tsc": "3.1.5"
+  }
+}
