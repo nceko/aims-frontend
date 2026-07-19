@@ -2,12 +2,41 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { authApi } from './auth.api'
 import { tokenStorage } from '@/services/token-storage'
-import type { AccessOption, CompanyOption, InitialLoginResponse, UserProfile } from '@/types/auth'
+import type {
+  AccessOption,
+  CompanyOption,
+  ContextSwitchRequest,
+  InitialLoginResponse,
+  UserProfile,
+} from '@/types/auth'
 
 interface CachedAuthState {
   user: UserProfile | null
   selectedCompany: CompanyOption | null
   contextOptions: { locations: AccessOption[]; categoryGroups: AccessOption[] }
+}
+
+function safeProfile(...sources: Array<Partial<UserProfile> | null | undefined>): UserProfile {
+  const source = Object.assign({}, ...sources) as UserProfile
+  return {
+    user_id: source.user_id,
+    id: source.id,
+    email: source.email,
+    full_name: source.full_name,
+    name: source.name,
+    roles: Array.isArray(source.roles) ? source.roles : [],
+    permissions: Array.isArray(source.permissions) ? source.permissions : [],
+    company_id: source.company_id,
+    company_name: source.company_name,
+    location_id: source.location_id,
+    location_name: source.location_name,
+    category_group_id: source.category_group_id,
+    category_group_name: source.category_group_name,
+    location_type_code: source.location_type_code,
+    is_central_location: source.is_central_location,
+    is_global_super_admin: source.is_global_super_admin,
+    has_context: source.has_context,
+  }
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -19,6 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
     categoryGroups: [],
   })
   const loading = ref(false)
+  const contextLoading = ref(false)
 
   const authenticated = computed(() => Boolean(tokenStorage.accessToken()))
   const displayName = computed(
@@ -33,16 +63,26 @@ export const useAuthStore = defineStore('auth', () => {
       Boolean(user.value?.is_global_super_admin) || normalizedRoles.value.includes('super_admin'),
   )
 
-  function persistState() {
+  function persistState(): void {
     tokenStorage.setAuthState({
-      user: user.value,
+      user: user.value ? safeProfile(user.value) : null,
       selectedCompany: selectedCompany.value,
       contextOptions: contextOptions.value,
     })
   }
 
-  async function loadCompanies() {
+  async function loadCompanies(): Promise<void> {
     companies.value = await authApi.companies()
+  }
+
+  async function loadContextOptions(companyId?: number): Promise<void> {
+    contextLoading.value = true
+    try {
+      contextOptions.value = await authApi.contextOptions(companyId)
+      persistState()
+    } finally {
+      contextLoading.value = false
+    }
   }
 
   async function login(payload: { company_id: number; identity: string; password: string }) {
@@ -58,11 +98,11 @@ export const useAuthStore = defineStore('auth', () => {
         locations: response.locations ?? [],
         categoryGroups: response.category_groups ?? [],
       }
-      user.value = {
-        ...response,
+      user.value = safeProfile(response, {
         email: payload.identity.includes('@') ? payload.identity : response.email,
+        company_id: payload.company_id,
         company_name: selectedCompany.value?.company_name ?? selectedCompany.value?.name,
-      }
+      })
       persistState()
       return response
     } finally {
@@ -70,10 +110,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function switchContext(payload: { location_id: number; category_group_id: number }) {
+  async function switchContext(payload: ContextSwitchRequest): Promise<void> {
     loading.value = true
     try {
-      const response = await authApi.switchContext(payload)
+      const response = await authApi.switchContext({
+        location_id: payload.location_id,
+        category_group_id: payload.category_group_id,
+        current_refresh_token: tokenStorage.refreshToken() ?? undefined,
+      })
       tokenStorage.setSession(response.access_token, response.refresh_token)
       const profile = await authApi.me()
       const location = contextOptions.value.locations.find(
@@ -82,33 +126,34 @@ export const useAuthStore = defineStore('auth', () => {
       const categoryGroup = contextOptions.value.categoryGroups.find(
         (item) => Number(item.id) === payload.category_group_id,
       )
-      user.value = {
-        ...user.value,
-        ...response,
-        ...profile,
+      user.value = safeProfile(user.value, response, profile, {
+        company_id: user.value?.company_id ?? profile.company_id ?? response.company_id,
         company_name:
+          user.value?.company_name ??
           selectedCompany.value?.company_name ??
-          selectedCompany.value?.name ??
-          user.value?.company_name,
+          selectedCompany.value?.name,
+        location_id: payload.location_id,
         location_name: location?.name,
+        category_group_id: payload.category_group_id,
         category_group_name: categoryGroup?.name,
-      }
+        has_context: true,
+      })
       persistState()
     } finally {
       loading.value = false
     }
   }
 
-  async function restoreSession() {
+  async function restoreSession(): Promise<boolean> {
     if (!tokenStorage.accessToken()) return false
     const cached = tokenStorage.authState<CachedAuthState>()
     if (cached) {
-      user.value = cached.user
+      user.value = cached.user ? safeProfile(cached.user) : null
       selectedCompany.value = cached.selectedCompany
-      contextOptions.value = cached.contextOptions
+      contextOptions.value = cached.contextOptions ?? { locations: [], categoryGroups: [] }
     }
     try {
-      user.value = { ...(cached?.user ?? {}), ...(await authApi.me()) }
+      user.value = safeProfile(cached?.user, await authApi.me())
       persistState()
       return true
     } catch {
@@ -123,7 +168,22 @@ export const useAuthStore = defineStore('auth', () => {
     return isSuperAdmin.value || permissions.value.has('*') || permissions.value.has(permission)
   }
 
-  async function logout() {
+  async function changeOwnPassword(password: string): Promise<void> {
+    const userId = user.value?.user_id || user.value?.id
+    if (!userId) throw new Error('User ID tidak tersedia pada session aktif.')
+    loading.value = true
+    try {
+      await authApi.updatePassword(userId, password)
+      tokenStorage.clear()
+      user.value = null
+      selectedCompany.value = null
+      contextOptions.value = { locations: [], categoryGroups: [] }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function logout(): Promise<void> {
     try {
       await authApi.logout(tokenStorage.refreshToken())
     } finally {
@@ -140,15 +200,18 @@ export const useAuthStore = defineStore('auth', () => {
     selectedCompany,
     contextOptions,
     loading,
+    contextLoading,
     authenticated,
     displayName,
     permissions,
     isSuperAdmin,
     loadCompanies,
+    loadContextOptions,
     login,
     switchContext,
     restoreSession,
     can,
+    changeOwnPassword,
     logout,
   }
 })

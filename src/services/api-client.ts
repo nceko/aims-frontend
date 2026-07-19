@@ -1,12 +1,44 @@
+import type { AxiosRequestConfig, AxiosResponse, ResponseType } from 'axios'
 import { http } from './http'
 import { unwrapData } from '@/utils/api'
+
+export interface DownloadResult {
+  blob: Blob
+  contentType: string
+  contentDisposition: string
+}
+
+async function rawResponse<T>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  return http.request<T>(config)
+}
 
 export const apiClient = {
   async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
     const { data } = await http.get(url, { params })
     return unwrapData<T>(data)
   },
+  async getRaw<T>(
+    url: string,
+    options: {
+      params?: Record<string, unknown>
+      responseType?: ResponseType
+      accept?: string
+    } = {},
+  ): Promise<T> {
+    const { data } = await rawResponse<T>({
+      method: 'GET',
+      url,
+      params: options.params,
+      responseType: options.responseType,
+      headers: options.accept ? { Accept: options.accept } : undefined,
+    })
+    return data
+  },
   async post<T>(url: string, body?: unknown): Promise<T> {
+    const { data } = await http.post(url, body)
+    return unwrapData<T>(data)
+  },
+  async postForm<T>(url: string, body: FormData): Promise<T> {
     const { data } = await http.post(url, body)
     return unwrapData<T>(data)
   },
@@ -21,5 +53,23 @@ export const apiClient = {
   async delete<T>(url: string): Promise<T> {
     const { data } = await http.delete(url)
     return unwrapData<T>(data)
+  },
+  async download(
+    url: string,
+    params?: Record<string, unknown>,
+    accept = 'application/octet-stream',
+  ): Promise<DownloadResult> {
+    const response = await rawResponse<Blob>({
+      method: 'GET',
+      url,
+      params,
+      responseType: 'blob',
+      headers: { Accept: accept },
+    })
+    return {
+      blob: response.data,
+      contentType: String(response.headers['content-type'] ?? ''),
+      contentDisposition: String(response.headers['content-disposition'] ?? ''),
+    }
   },
 }

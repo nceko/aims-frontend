@@ -27,5 +27,4 @@ export const dashboardApi = {
   stockByLocation: () =>
     apiClient.get<Record<string, unknown>[]>(endpoints.dashboard.stockByLocation),
   movementTrend: () => apiClient.get<Record<string, unknown>[]>(endpoints.dashboard.movementTrend),
-  audit: () => apiClient.get<Record<string, unknown>>(endpoints.dashboard.audit),
 }

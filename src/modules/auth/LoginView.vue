@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from '@lucide/vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
@@ -11,9 +11,15 @@ import { errorMessage } from '@/utils/api'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const stage = ref<'credentials' | 'context'>('credentials')
 const showPassword = ref(false)
 const error = ref('')
+const successMessage = computed(() =>
+  route.query.password_changed === '1'
+    ? 'Password berhasil diubah. Silakan login kembali menggunakan password baru.'
+    : '',
+)
 const form = reactive({
   companyId: '',
   identity: '',
@@ -132,9 +138,7 @@ async function submitContext(event: SubmitEvent) {
       <div class="auth-showcase__content">
         <AppLogo inverse />
         <div class="auth-showcase__message">
-          <span class="auth-kicker">
-            <ShieldCheck :size="18" /> Integrated Operations
-          </span>
+          <span class="auth-kicker"> <ShieldCheck :size="18" /> Integrated Operations </span>
           <h1>Kendalikan aset dan inventory dalam satu sistem yang terukur.</h1>
           <p>
             AIMS membantu proses pembelian, penerimaan, stok, distribusi, hingga siklus hidup aset
@@ -155,25 +159,51 @@ async function submitContext(event: SubmitEvent) {
           <AppLogo />
         </div>
         <span class="auth-panel__eyebrow">Selamat datang</span>
-        <h2>{{ stage === 'credentials' ? 'Masuk ke AIMS' : 'Pilih Warehouse Akses' }}</h2>
+        <h2>{{ stage === 'credentials' ? 'Masuk ke AIMS' : 'Pilih Context Akses' }}</h2>
         <p>
           {{
             stage === 'credentials'
               ? 'Gunakan akun yang telah diberikan oleh administrator.'
-              : 'Pilih Warehouse dan location yang akan digunakan.'
+              : 'Pilih Category Group dan location yang akan digunakan.'
           }}
         </p>
 
+        <div v-if="successMessage" class="notice notice--success" role="status">
+          {{ successMessage }}
+        </div>
         <div v-if="error" class="auth-error" role="alert">{{ error }}</div>
 
         <form v-if="stage === 'credentials'" class="auth-form" @submit.prevent="submitCredentials">
-          <AppSelect v-model="form.companyId" name="company_id" label="Perusahaan" :options="companyOptions" required />
-          <AppInput v-model="form.identity" name="identity" label="Email / NIB" type="email" autocomplete="username"
-            required />
+          <AppSelect
+            v-model="form.companyId"
+            name="company_id"
+            label="Perusahaan"
+            :options="companyOptions"
+            required
+          />
+          <AppInput
+            v-model="form.identity"
+            name="identity"
+            label="Email / NIB"
+            type="text"
+            inputmode="text"
+            autocomplete="username"
+            required
+          />
           <div class="password-field">
-            <AppInput v-model="form.password" name="password" label="Password"
-              :type="showPassword ? 'text' : 'password'" autocomplete="current-password" required />
-            <button type="button" aria-label="Tampilkan password" @click="showPassword = !showPassword">
+            <AppInput
+              v-model="form.password"
+              name="password"
+              label="Password"
+              :type="showPassword ? 'text' : 'password'"
+              autocomplete="current-password"
+              required
+            />
+            <button
+              type="button"
+              aria-label="Tampilkan password"
+              @click="showPassword = !showPassword"
+            >
               <EyeOff v-if="showPassword" :size="19" />
               <Eye v-else :size="19" />
             </button>
@@ -184,17 +214,29 @@ async function submitContext(event: SubmitEvent) {
         </form>
 
         <form v-else class="auth-form" @submit.prevent="submitContext">
-          <AppSelect v-model="form.categoryGroupId" name="category_group_id" label="Warehouse Category"
-            :options="categoryOptions" required />
-          <AppSelect v-model="form.locationId" name="location_id" label="Location" :options="locationOptions"
-            required />
+          <AppSelect
+            v-model="form.categoryGroupId"
+            name="category_group_id"
+            label="Category Group"
+            :options="categoryOptions"
+            required
+          />
+          <AppSelect
+            v-model="form.locationId"
+            name="location_id"
+            label="Location"
+            :options="locationOptions"
+            required
+          />
           <AppButton type="submit" :loading="auth.loading"> Aktifkan context </AppButton>
           <button class="auth-back" type="button" @click="stage = 'credentials'">
             Kembali ke login
           </button>
         </form>
 
-        <small class="auth-panel__security">Koneksi Anda dilindungi dan aktivitas akun tercatat.</small>
+        <small class="auth-panel__security"
+          >Koneksi Anda dilindungi dan aktivitas akun tercatat.</small
+        >
       </div>
     </section>
   </main>

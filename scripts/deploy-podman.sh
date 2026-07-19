@@ -8,6 +8,7 @@ APP_NAME="${APP_NAME:-AIMS}"
 APP_FULL_NAME="${APP_FULL_NAME:-Aset & Inventory Management System}"
 API_BASE_URL="${API_BASE_URL:?API_BASE_URL wajib diisi}"
 API_TIMEOUT="${API_TIMEOUT:-30000}"
+ENABLE_IDEMPOTENCY_HEADER="${ENABLE_IDEMPOTENCY_HEADER:-false}"
 
 podman pull "$IMAGE"
 podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
@@ -19,6 +20,7 @@ podman run -d \
   -e APP_FULL_NAME="$APP_FULL_NAME" \
   -e API_BASE_URL="$API_BASE_URL" \
   -e API_TIMEOUT="$API_TIMEOUT" \
+  -e ENABLE_IDEMPOTENCY_HEADER="$ENABLE_IDEMPOTENCY_HEADER" \
   "$IMAGE"
 
 sleep 3

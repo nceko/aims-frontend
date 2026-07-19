@@ -6,5 +6,6 @@ declare interface Window {
     APP_FULL_NAME?: string
     API_BASE_URL?: string
     API_TIMEOUT?: string | number
+    ENABLE_IDEMPOTENCY_HEADER?: string | boolean
   }
 }

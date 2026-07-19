@@ -10,6 +10,7 @@ const props = withDefaults(
     placeholder?: string
     required?: boolean
     autocomplete?: string
+    inputmode?: 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
     error?: string
     disabled?: boolean
   }>(),
@@ -37,6 +38,7 @@ function syncValue(event: Event) {
       :placeholder
       :required
       :autocomplete
+      :inputmode
       :disabled
       @input="syncValue"
       @change="syncValue"

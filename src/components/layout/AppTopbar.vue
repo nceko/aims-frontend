@@ -1,7 +1,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bell, ChevronDown, LogOut, Menu, Search, UserRound } from '@lucide/vue'
+import {
+  Bell,
+  ChevronDown,
+  KeyRound,
+  LogOut,
+  Menu,
+  Moon,
+  PanelLeft,
+  PanelTop,
+  RefreshCw,
+  Search,
+  Sun,
+  UserRound,
+} from '@lucide/vue'
 import { useRouter } from 'vue-router'
+import AppLogo from '@/components/layout/AppLogo.vue'
+import ChangePasswordModal from '@/components/layout/ChangePasswordModal.vue'
+import ContextSwitcherModal from '@/components/layout/ContextSwitcherModal.vue'
 import { navigation, type NavItem } from '@/config/navigation'
 import { useAuthStore } from '@/modules/auth/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -12,6 +28,8 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const router = useRouter()
 const profileOpen = ref(false)
+const contextOpen = ref(false)
+const passwordOpen = ref(false)
 const searchOpen = ref(false)
 const searchQuery = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
@@ -25,10 +43,29 @@ const initials = computed(() =>
     .join('')
     .toUpperCase(),
 )
+const contextLabel = computed(() => {
+  const location = auth.user?.location_name || 'Location'
+  const category = auth.user?.category_group_name || 'Category Group'
+  return `${location} · ${category}`
+})
+const themeLabel = computed(() =>
+  ui.theme === 'dark' ? 'Gunakan tema terang' : 'Gunakan tema gelap',
+)
+const menuLayoutLabel = computed(() =>
+  ui.menuLayout === 'sidebar' ? 'Pindahkan menu ke bawah topbar' : 'Pindahkan menu ke sidebar',
+)
+const menuVisible = computed(() =>
+  ui.menuLayout === 'sidebar' ? ui.sidebarOpen : ui.horizontalMenuOpen,
+)
+const menuVisibilityLabel = computed(() =>
+  menuVisible.value ? 'Tutup menu navigasi' : 'Tampilkan menu navigasi',
+)
+
 function allowed(item: NavItem): boolean {
   if (item.superAdminOnly && !auth.isSuperAdmin) return false
-  if (item.permissionAny?.length)
+  if (item.permissionAny?.length) {
     return item.permissionAny.some((permission) => auth.can(permission))
+  }
   return auth.can(item.permission)
 }
 const searchableItems = computed(() =>
@@ -68,6 +105,7 @@ async function loadNotificationCount(): Promise<void> {
   }
 }
 async function openSearch(): Promise<void> {
+  profileOpen.value = false
   searchOpen.value = true
   await nextTick()
   searchInput.value?.focus()
@@ -81,12 +119,31 @@ async function chooseSearchResult(path?: string): Promise<void> {
   closeSearch()
   await router.push(path)
 }
+function openContext(): void {
+  profileOpen.value = false
+  closeSearch()
+  contextOpen.value = true
+}
+function openPassword(): void {
+  profileOpen.value = false
+  closeSearch()
+  passwordOpen.value = true
+}
 function keyboard(event: KeyboardEvent): void {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     void openSearch()
   }
-  if (event.key === 'Escape') closeSearch()
+  if (event.key === 'Escape') {
+    closeSearch()
+    profileOpen.value = false
+  }
+}
+function contextSwitched(): void {
+  window.location.assign('/')
+}
+async function passwordChanged(): Promise<void> {
+  await router.replace({ path: '/login', query: { password_changed: '1' } })
 }
 async function logout(): Promise<void> {
   await auth.logout()
@@ -103,7 +160,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
 <template>
   <header class="app-topbar">
     <div class="app-topbar__left">
-      <button class="icon-button" aria-label="Buka atau tutup menu" @click="ui.toggleSidebar">
+      <AppLogo class="app-topbar__brand" />
+      <button
+        class="icon-button app-topbar__menu-toggle"
+        type="button"
+        :title="menuVisibilityLabel"
+        :aria-label="menuVisibilityLabel"
+        :aria-expanded="menuVisible"
+        aria-controls="aims-primary-navigation"
+        @click="ui.toggleNavigation"
+      >
         <Menu :size="22" />
       </button>
       <div class="topbar-search-wrap">
@@ -140,6 +206,41 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
     </div>
 
     <div class="app-topbar__right">
+      <button
+        class="topbar-context-button"
+        type="button"
+        title="Ganti location dan category group"
+        @click="openContext"
+      >
+        <RefreshCw :size="18" />
+        <span>
+          <small>Context aktif</small>
+          <strong>{{ contextLabel }}</strong>
+        </span>
+      </button>
+
+      <button
+        class="icon-button topbar-layout-toggle"
+        type="button"
+        :title="menuLayoutLabel"
+        :aria-label="menuLayoutLabel"
+        @click="ui.toggleMenuLayout"
+      >
+        <PanelTop v-if="ui.menuLayout === 'sidebar'" :size="20" />
+        <PanelLeft v-else :size="20" />
+      </button>
+
+      <button
+        class="icon-button"
+        type="button"
+        :title="themeLabel"
+        :aria-label="themeLabel"
+        @click="ui.toggleTheme"
+      >
+        <Sun v-if="ui.theme === 'dark'" :size="20" />
+        <Moon v-else :size="20" />
+      </button>
+
       <RouterLink
         v-if="auth.can('operations.notifications.read')"
         class="icon-button icon-button--notification"
@@ -152,6 +253,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
           unreadNotifications > 99 ? '99+' : unreadNotifications
         }}</b>
       </RouterLink>
+
       <div class="profile-menu">
         <button class="profile-trigger" type="button" @click="profileOpen = !profileOpen">
           <span class="profile-trigger__avatar">{{ initials || 'U' }}</span>
@@ -162,12 +264,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
           <ChevronDown :size="16" />
         </button>
         <div v-if="profileOpen" class="profile-dropdown">
+          <div class="profile-dropdown__summary">
+            <strong>{{ auth.displayName }}</strong>
+            <span>{{ auth.user?.email || auth.user?.company_name || 'Akun AIMS' }}</span>
+          </div>
           <RouterLink to="/profile" @click="profileOpen = false">
-            <UserRound :size="17" /> Profil & Context
+            <UserRound :size="17" /> Profil Saya
           </RouterLink>
-          <button type="button" @click="logout"><LogOut :size="17" /> Keluar</button>
+          <button type="button" @click="openContext"><RefreshCw :size="17" /> Ganti Context</button>
+          <button type="button" @click="openPassword">
+            <KeyRound :size="17" /> Ganti Password
+          </button>
+          <button type="button" @click="ui.toggleMenuLayout">
+            <PanelTop v-if="ui.menuLayout === 'sidebar'" :size="17" />
+            <PanelLeft v-else :size="17" />
+            {{ ui.menuLayout === 'sidebar' ? 'Menu Horizontal' : 'Menu Sidebar' }}
+          </button>
+          <div class="profile-dropdown__divider"></div>
+          <button type="button" class="profile-dropdown__logout" @click="logout">
+            <LogOut :size="17" /> Keluar
+          </button>
         </div>
       </div>
     </div>
   </header>
+
+  <ContextSwitcherModal
+    :open="contextOpen"
+    @close="contextOpen = false"
+    @switched="contextSwitched"
+  />
+  <ChangePasswordModal
+    :open="passwordOpen"
+    @close="passwordOpen = false"
+    @changed="passwordChanged"
+  />
 </template>

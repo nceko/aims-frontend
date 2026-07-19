@@ -1,11 +1,30 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
 import { runtimeConfig } from '@/config/runtime'
 import { endpoints } from '@/config/endpoints'
 import { tokenStorage } from './token-storage'
+import {
+  bearerTokenFor,
+  createIdempotencyKey,
+  isFormData,
+  isPublicPath,
+  isUrlSearchParams,
+  needsIdempotencyKey,
+  requestPath,
+  requiresBearerToken,
+} from './request-policy'
 
 interface RetriableRequest extends InternalAxiosRequestConfig {
   _retry?: boolean
 }
+
+const refreshHttp = axios.create({
+  baseURL: runtimeConfig.apiBaseUrl,
+  timeout: runtimeConfig.apiTimeout,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  },
+})
 
 export const http = axios.create({
   baseURL: runtimeConfig.apiBaseUrl,
@@ -15,15 +34,18 @@ export const http = axios.create({
 
 let refreshing: Promise<string> | null = null
 
+function ensureHeaders(config: InternalAxiosRequestConfig): AxiosHeaders {
+  if (config.headers instanceof AxiosHeaders) return config.headers
+  const headers = new AxiosHeaders(config.headers)
+  config.headers = headers
+  return headers
+}
+
 async function refreshAccessToken(): Promise<string> {
   const refreshToken = tokenStorage.refreshToken()
   if (!refreshToken) throw new Error('Refresh token tidak tersedia.')
 
-  const response = await axios.post(
-    `${runtimeConfig.apiBaseUrl}${endpoints.auth.refresh}`,
-    { refresh_token: refreshToken },
-    { timeout: runtimeConfig.apiTimeout },
-  )
+  const response = await refreshHttp.post(endpoints.auth.refresh, { refresh_token: refreshToken })
   const payload = response.data?.data ?? response.data
   const accessToken = String(payload.access_token || '')
   const nextRefreshToken = String(payload.refresh_token || refreshToken)
@@ -33,8 +55,45 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 http.interceptors.request.use((config) => {
-  const token = tokenStorage.accessToken() || tokenStorage.initialToken()
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  const headers = ensureHeaders(config)
+  const path = requestPath(config.url)
+
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+
+  // Public company, login, dan refresh tidak boleh menerima Bearer token.
+  // Semua endpoint /api/v1 lain memakai access token aktif; switch-context awal
+  // memakai initial token karena access token final belum tersedia.
+  const token = bearerTokenFor(path)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  else {
+    headers.delete('Authorization')
+    if (requiresBearerToken(path)) {
+      throw new AxiosError(
+        'Access token tidak tersedia. Silakan login kembali.',
+        'AUTH_TOKEN_MISSING',
+        config,
+      )
+    }
+  }
+
+  // Biarkan browser membuat multipart boundary untuk FormData.
+  if (isFormData(config.data)) {
+    headers.delete('Content-Type')
+  } else if (isUrlSearchParams(config.data)) {
+    headers.set('Content-Type', 'application/x-www-form-urlencoded;charset=UTF-8')
+  } else if (config.data !== undefined && config.data !== null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  // Satu key untuk satu operasi bisnis. Header yang sama dipertahankan ketika retry.
+  if (
+    runtimeConfig.enableIdempotencyHeader &&
+    needsIdempotencyKey(config.method, path) &&
+    !headers.has('Idempotency-Key')
+  ) {
+    headers.set('Idempotency-Key', createIdempotencyKey())
+  }
+
   return config
 })
 
@@ -42,10 +101,16 @@ http.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const request = error.config as RetriableRequest | undefined
-    const isAuthEndpoint =
-      request?.url?.includes('/auth/login') || request?.url?.includes('/auth/refresh')
+    const path = requestPath(request?.url)
+    const refreshToken = tokenStorage.refreshToken()
 
-    if (error.response?.status !== 401 || !request || request._retry || isAuthEndpoint) {
+    if (
+      error.response?.status !== 401 ||
+      !request ||
+      request._retry ||
+      isPublicPath(path) ||
+      !refreshToken
+    ) {
       return Promise.reject(error)
     }
 
@@ -55,7 +120,7 @@ http.interceptors.response.use(
         refreshing = null
       })
       const token = await refreshing
-      request.headers.Authorization = `Bearer ${token}`
+      ensureHeaders(request).set('Authorization', `Bearer ${token}`)
       return http(request)
     } catch (refreshError) {
       tokenStorage.clear()

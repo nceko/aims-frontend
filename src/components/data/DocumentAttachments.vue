@@ -2,9 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { Download, FileText, Paperclip, RefreshCw, Trash2, Upload } from '@lucide/vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue'
 import { useAuthStore } from '@/modules/auth/auth.store'
 import { apiClient } from '@/services/api-client'
-import { http } from '@/services/http'
 import { errorMessage, normalizeList } from '@/utils/api'
 
 interface Attachment {
@@ -24,7 +24,9 @@ const items = ref<Attachment[]>([])
 const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
+const success = ref('')
 const description = ref('')
+const pendingDelete = ref<Attachment | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const canRead = computed(() => auth.can('operations.attachments.read'))
 const canCreate = computed(() => auth.can('operations.attachments.create'))
@@ -76,10 +78,12 @@ async function upload() {
   if (description.value.trim()) form.append('description', description.value.trim())
   busy.value = true
   error.value = ''
+  success.value = ''
   try {
-    await http.post(endpoint.value, form)
+    await apiClient.postForm(endpoint.value, form)
     if (fileInput.value) fileInput.value.value = ''
     description.value = ''
+    success.value = 'Lampiran berhasil diunggah.'
     await load()
   } catch (cause) {
     error.value = errorMessage(cause, 'Lampiran gagal diunggah.')
@@ -93,8 +97,8 @@ async function download(item: Attachment) {
   busy.value = true
   error.value = ''
   try {
-    const response = await http.get(`/api/v1/attachments/${id}/download`, { responseType: 'blob' })
-    const url = URL.createObjectURL(response.data)
+    const response = await apiClient.download(`/api/v1/attachments/${id}/download`)
+    const url = URL.createObjectURL(response.blob)
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = item.original_name || `attachment-${id}`
@@ -108,13 +112,26 @@ async function download(item: Attachment) {
     busy.value = false
   }
 }
-async function remove(item: Attachment) {
-  const id = idOf(item)
-  if (!id || !window.confirm(`Hapus lampiran ${item.original_name || id}?`)) return
+function remove(item: Attachment) {
+  if (!idOf(item)) return
+  pendingDelete.value = item
+}
+
+function closeDeleteConfirm(): void {
+  if (!busy.value) pendingDelete.value = null
+}
+
+async function confirmDelete(): Promise<void> {
+  const item = pendingDelete.value
+  const id = item ? idOf(item) : undefined
+  if (!item || !id) return
   busy.value = true
   error.value = ''
+  success.value = ''
   try {
     await apiClient.delete(`/api/v1/attachments/${id}`)
+    pendingDelete.value = null
+    success.value = 'Lampiran berhasil dipindahkan ke Recycle Bin.'
     await load()
   } catch (cause) {
     error.value = errorMessage(cause, 'Lampiran gagal dihapus.')
@@ -145,6 +162,7 @@ watch(() => [props.entityType, props.entityId], load)
       </button>
     </div>
     <div v-if="error" class="notice notice--danger">{{ error }}</div>
+    <div v-if="success" class="notice notice--success">{{ success }}</div>
     <form v-if="canCreate" class="attachment-upload" @submit.prevent="upload">
       <input ref="fileInput" type="file" required />
       <input v-model="description" type="text" placeholder="Deskripsi file (opsional)" />
@@ -182,5 +200,18 @@ watch(() => [props.entityType, props.entityId], load)
       </article>
     </div>
     <p v-else-if="!loading" class="attachments-empty">Belum ada lampiran.</p>
+
+    <AppConfirmDialog
+      :open="Boolean(pendingDelete)"
+      title="Hapus lampiran"
+      :message="`Hapus ${pendingDelete?.original_name || 'lampiran ini'}?`"
+      detail="Lampiran mengikuti aturan soft delete backend dan tidak langsung dihapus permanen."
+      confirm-label="Ya, hapus"
+      tone="danger"
+      :busy="busy"
+      :layer="4"
+      @close="closeDeleteConfirm"
+      @confirm="confirmDelete"
+    />
   </section>
 </template>

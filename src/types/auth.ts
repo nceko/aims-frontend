@@ -12,7 +12,10 @@ export interface AccessOption {
   id: number
   code?: string
   name: string
+  label?: string
   company_id?: number
+  company_code?: string
+  company_name?: string
 }
 
 export interface UserProfile {
@@ -33,6 +36,12 @@ export interface UserProfile {
   is_central_location?: boolean
   is_global_super_admin?: boolean
   has_context?: boolean
+}
+
+export interface ContextSwitchRequest {
+  location_id: number
+  category_group_id: number
+  current_refresh_token?: string
 }
 
 export interface InitialLoginResponse extends UserProfile {

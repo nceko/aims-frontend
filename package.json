@@ -21,14 +21,17 @@
     "ci": "npm run format:check && npm run type-check && npm test && npm run build-only"
   },
   "dependencies": {
+    "@lucide/vue": "1.25.0",
     "axios": "1.18.1",
+    "jspdf": "3.0.2",
     "pinia": "3.0.4",
+    "qrcode": "1.5.4",
     "vue": "3.5.40",
-    "vue-router": "4.6.4",
-    "@lucide/vue": "1.25.0"
+    "vue-router": "4.6.4"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "@types/qrcode": "1.5.5",
     "@vitejs/plugin-vue": "6.0.8",
     "prettier": "3.7.4",
     "sass": "1.97.3",

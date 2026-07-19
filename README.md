@@ -254,3 +254,72 @@ Project sudah melalui format check, TypeScript check, mapping test, dan producti
 Seluruh dropdown aplikasi menggunakan komponen Select2 AIMS pada `src/components/ui/AppSelect.vue`. Komponen mendukung pencarian, multi-select, clear selection, keyboard navigation, loading state, dan dependent dropdown tanpa ketergantungan jQuery.
 
 Laporan implementasi tersedia di `docs/SELECT2_IMPLEMENTATION_REPORT.md`.
+
+## Theme, Context, dan Profil
+
+Topbar AIMS menyediakan:
+
+- toggle tema light/dark dengan preferensi tersimpan;
+- pergantian context company/location/category group;
+- profile dropdown yang lebih rapi;
+- halaman profil yang tidak menampilkan access token atau refresh token.
+
+Detail implementasi tersedia pada `docs/TOPBAR_THEME_CONTEXT_PROFILE_REPORT.md`.
+
+## DataTable, posisi menu, context, dan password
+
+- Seluruh tabel utama memakai `src/components/data/AppDataTable.vue`.
+- Posisi menu dapat dipilih per user: sidebar atau horizontal di bawah topbar.
+- Preferensi menu tersimpan pada `aims.menu-layout.{user_id}`.
+- Switch context hanya mengganti location dan category group; pergantian company wajib logout.
+- Ganti password tersedia dari topbar dan halaman profil. Lihat catatan endpoint backend pada `docs/DATATABLE_MENU_PASSWORD_CONTEXT_REPORT.md`.
+
+## API headers dan keamanan request
+
+Seluruh request API aplikasi melewati `src/services/http.ts` dan kebijakan pada `src/services/request-policy.ts`.
+
+- endpoint protected membawa `Authorization: Bearer <access_token>`;
+- switch context awal membawa initial access token;
+- endpoint public company, login, dan refresh tidak membawa Bearer token;
+- request JSON memakai `Content-Type: application/json`;
+- upload memakai multipart boundary yang dibuat browser;
+- mutasi protected memakai `Idempotency-Key`;
+- response `401` menjalankan satu refresh token dan retry request secara terpusat;
+- context company/location/category group dibaca backend dari access token, bukan custom header.
+
+Detail tersedia di `docs/API_HEADER_AND_TABLE_ACTION_REPORT.md`.
+
+## Catatan header idempotency dan CORS
+
+Frontend selalu mengirim `Authorization: Bearer <access_token>` untuk endpoint protected. Header `Idempotency-Key` bersifat opsional dan default-nya dimatikan karena konfigurasi CORS backend saat ini belum memasukkan header tersebut ke `Access-Control-Allow-Headers`.
+
+```env
+VITE_ENABLE_IDEMPOTENCY_HEADER=false
+```
+
+Aktifkan hanya setelah backend mengizinkan `Idempotency-Key` pada CORS. Untuk container, gunakan environment variable `ENABLE_IDEMPOTENCY_HEADER=true`.
+
+## Preview dan Cetak QR Goods Receipt
+
+Pada menu **Penerimaan Barang**, gunakan action **Generate & Cetak QR** untuk membuat QR yang belum tersedia dan langsung membuka modal label. Gunakan **Lihat / Cetak QR** untuk mencetak ulang QR yang sudah pernah dibuat.
+
+Format output yang tersedia:
+
+- label printer 50 × 30 mm;
+- lembar A4 tiga kolom;
+- print browser;
+- download PDF.
+
+QR hanya dibuat untuk item dengan `tracking_type = SERIAL` dan `accepted_qty > 0`.
+
+## Update V18 — Notifikasi dan Active Menu
+
+- Notifikasi sukses otomatis hilang setelah 5 detik.
+- Notifikasi error otomatis hilang setelah 8 detik.
+- Notifikasi langsung dibersihkan saat berpindah modul.
+- Menu aktif mengikuti route aktual; Dashboard tidak lagi aktif pada semua halaman.
+- Parent menu otomatis terbuka ketika child route sedang aktif.
+
+## Detail relation dan tampilan ID
+
+Modal detail memakai `RelatedDataTable` untuk seluruh collection/array seperti item part number, supplier item, role, permission, access, history, dan relation lain. ID teknis tetap dipakai untuk API dan action, tetapi tidak ditampilkan kepada user. Nilai nama/kode yang bermakna ditampilkan sebagai gantinya.

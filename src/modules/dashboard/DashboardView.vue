@@ -26,7 +26,6 @@ const assets = ref<AssetSummary>({})
 const pending = ref<Record<string, number | string>>({})
 const locations = ref<Record<string, unknown>[]>([])
 const trend = ref<Record<string, unknown>[]>([])
-const audit = ref<Record<string, unknown>>({})
 const loading = ref(true)
 const error = ref('')
 
@@ -83,13 +82,6 @@ async function load(): Promise<void> {
   if (locationResult.status === 'fulfilled') locations.value = locationResult.value
   if (trendResult.status === 'fulfilled') trend.value = trendResult.value
 
-  if (auth.can('reports.audit.read')) {
-    try {
-      audit.value = await dashboardApi.audit()
-    } catch {
-      audit.value = {}
-    }
-  }
   loading.value = false
 }
 
@@ -156,14 +148,5 @@ onMounted(load)
         <EmptyState v-else title="Belum ada movement"><Activity :size="20" /></EmptyState>
       </AppCard>
     </div>
-
-    <AppCard
-      v-if="auth.can('reports.audit.read')"
-      title="Audit & API Activity"
-      subtitle="Ringkasan aktivitas teknis backend sesuai context aktif."
-    >
-      <StructuredData v-if="Object.keys(audit).length" :value="audit" />
-      <EmptyState v-else title="Data audit belum tersedia" />
-    </AppCard>
   </div>
 </template>

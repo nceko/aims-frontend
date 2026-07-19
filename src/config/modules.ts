@@ -488,9 +488,16 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
       },
       {
         operationId: 'GenerateGoodsReceiptQR',
-        label: 'Generate QR',
+        label: 'Generate & Cetak QR',
         permission: 'transaction.goods_receipts.generate_qr',
+        handler: 'generate-qr-labels',
         statuses: ['CHECKED', 'ACCEPTED', 'PARTIAL_ACCEPTED'],
+      },
+      {
+        operationId: 'FindGoodsReceiptByID',
+        label: 'Lihat / Cetak QR',
+        permission: 'transaction.goods_receipts.read',
+        handler: 'qr-labels',
       },
       {
         operationId: 'PreviewGoodsReceiptScan',

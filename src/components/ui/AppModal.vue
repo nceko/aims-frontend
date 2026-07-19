@@ -8,8 +8,9 @@ withDefaults(
     description?: string
     size?: 'sm' | 'md' | 'lg' | 'xl'
     busy?: boolean
+    layer?: number
   }>(),
-  { size: 'lg', busy: false },
+  { size: 'lg', busy: false, layer: 1 },
 )
 const emit = defineEmits<{ close: [] }>()
 </script>
@@ -19,6 +20,7 @@ const emit = defineEmits<{ close: [] }>()
     <div
       v-if="open"
       class="modal-backdrop"
+      :style="{ zIndex: 90 + Math.max(0, layer - 1) * 20 }"
       role="presentation"
       @mousedown.self="!busy && emit('close')"
     >

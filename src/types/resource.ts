@@ -52,6 +52,7 @@ export interface ResourceActionDefinition {
   pathValueKey?: string
   opensDetail?: boolean
   openHtmlPath?: string
+  handler?: 'generate-qr-labels' | 'qr-labels'
 }
 
 export interface ResourceModuleDefinition {

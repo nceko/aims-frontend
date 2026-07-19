@@ -24,7 +24,11 @@ export function normalizeList<T>(payload: unknown): T[] {
 
 export function errorMessage(error: unknown, fallback = 'Terjadi kesalahan.'): string {
   if (typeof error === 'object' && error !== null) {
-    const response = (error as { response?: { data?: unknown } }).response
+    const networkError = error as { code?: string; response?: { data?: unknown } }
+    if (networkError.code === 'ERR_NETWORK' && !networkError.response) {
+      return 'Koneksi ke backend gagal atau request diblokir oleh kebijakan CORS.'
+    }
+    const response = networkError.response
     const data = response?.data
     if (data && typeof data === 'object') {
       const value = data as {

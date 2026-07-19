@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Download, FileBarChart, RefreshCw, Search } from '@lucide/vue'
+import { Download, FileBarChart } from '@lucide/vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
+import AppDataTable, { type DataTableColumn } from '@/components/data/AppDataTable.vue'
 import StatusBadge from '@/components/data/StatusBadge.vue'
 import { useAuthStore } from '@/modules/auth/auth.store'
 import { apiClient } from '@/services/api-client'
-import { http } from '@/services/http'
 import { errorMessage, normalizeList } from '@/utils/api'
 import { humanizeField } from '@/config/field-options'
 
@@ -127,6 +126,8 @@ const exporting = ref(false)
 const error = ref('')
 const search = ref('')
 const asOf = ref('')
+const page = ref(1)
+const perPage = ref(25)
 const columns = computed(() => {
   const row = rows.value[0]
   if (!row) return []
@@ -134,6 +135,13 @@ const columns = computed(() => {
     .filter((key) => typeof row[key] !== 'object' && !['deleted_at'].includes(key))
     .slice(0, 12)
 })
+const dataTableColumns = computed<DataTableColumn[]>(() =>
+  columns.value.map((column) => ({
+    key: column,
+    label: humanizeField(column),
+    sortable: true,
+  })),
+)
 function display(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? 'Ya' : 'Tidak'
@@ -151,6 +159,7 @@ function isStatus(key: string) {
 }
 async function load() {
   if (!active.value) return
+  page.value = 1
   loading.value = true
   error.value = ''
   try {
@@ -171,12 +180,14 @@ async function exportReport(format: 'csv' | 'xlsx') {
   exporting.value = true
   error.value = ''
   try {
-    const response = await http.get(active.value.path, {
-      params: { search: search.value || undefined, as_of: asOf.value || undefined, format },
-      responseType: 'blob',
-    })
-    const blob = new Blob([response.data])
-    const url = URL.createObjectURL(blob)
+    const response = await apiClient.download(
+      active.value.path,
+      { search: search.value || undefined, as_of: asOf.value || undefined, format },
+      format === 'csv'
+        ? 'text/csv'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    const url = URL.createObjectURL(response.blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `${active.value.key}.${format}`
@@ -192,6 +203,7 @@ function choose(report: ReportDefinition) {
   active.value = report
   rows.value = []
   error.value = ''
+  page.value = 1
   load()
 }
 </script>
@@ -219,22 +231,14 @@ function choose(report: ReportDefinition) {
         </button>
       </aside>
       <AppCard v-if="active" flush>
-        <div class="table-toolbar report-toolbar">
+        <div class="report-heading-toolbar">
           <div>
-            <strong>{{ active.title }}</strong
-            ><small>{{ active.description }}</small>
+            <strong>{{ active.title }}</strong>
+            <small>{{ active.description }}</small>
           </div>
           <div class="report-filters">
-            <label class="table-search"
-              ><Search :size="16" /><input
-                v-model="search"
-                placeholder="Search"
-                @keyup.enter="load"
-            /></label>
             <input v-model="asOf" class="compact-input" type="date" title="As of date" />
-            <button class="icon-button" :disabled="loading" @click="load">
-              <RefreshCw :size="17" :class="{ spin: loading }" />
-            </button>
+            <AppButton variant="ghost" :disabled="loading" @click="load">Muat Laporan</AppButton>
             <AppButton
               v-if="active.exportable"
               variant="ghost"
@@ -251,32 +255,25 @@ function choose(report: ReportDefinition) {
             >
           </div>
         </div>
-        <div v-if="loading" class="table-loading">
-          <span v-for="n in 7" :key="n" class="skeleton skeleton--row"></span>
-        </div>
-        <div v-else-if="rows.length" class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th v-for="column in columns" :key="column">{{ humanizeField(column) }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, i) in rows" :key="i">
-                <td v-for="column in columns" :key="column">
-                  <StatusBadge v-if="isStatus(column)" :value="row[column]" /><template v-else>{{
-                    display(row[column])
-                  }}</template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <EmptyState
-          v-else
-          title="Pilih dan muat laporan"
-          description="Gunakan tombol refresh untuk mengambil data terbaru dari backend."
-        />
+        <AppDataTable
+          v-model:search="search"
+          :rows="rows"
+          :columns="dataTableColumns"
+          :loading="loading"
+          :page="page"
+          :per-page="perPage"
+          search-placeholder="Cari pada laporan…"
+          empty-title="Pilih dan muat laporan"
+          empty-description="Gunakan tombol Muat Laporan untuk mengambil data terbaru dari backend."
+          @update:per-page="perPage = $event"
+          @page-change="page = $event"
+          @refresh="load"
+        >
+          <template #cell="{ row, column }">
+            <StatusBadge v-if="isStatus(column.key)" :value="row[column.key]" />
+            <template v-else>{{ display(row[column.key]) }}</template>
+          </template>
+        </AppDataTable>
       </AppCard>
     </div>
   </div>

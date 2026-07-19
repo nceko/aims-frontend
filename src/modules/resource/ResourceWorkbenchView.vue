@@ -1,23 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { Eye, Pencil, Plus, QrCode, RefreshCw, Search, Trash2, MoreHorizontal } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { Eye, Pencil, Plus, QrCode, Trash2, MoreHorizontal } from '@lucide/vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppModal from '@/components/ui/AppModal.vue'
-import AppSelect from '@/components/ui/AppSelect.vue'
+import AppConfirmDialog from '@/components/ui/AppConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
+import AppDataTable, { type DataTableColumn } from '@/components/data/AppDataTable.vue'
 import SchemaFields from '@/components/data/SchemaFields.vue'
 import StatusBadge from '@/components/data/StatusBadge.vue'
 import StructuredData from '@/components/data/StructuredData.vue'
 import DocumentAttachments from '@/components/data/DocumentAttachments.vue'
+import RelatedDataTable from '@/components/data/RelatedDataTable.vue'
+import GoodsReceiptQrModal, {
+  type GoodsReceiptQrLabel,
+} from '@/components/data/GoodsReceiptQrModal.vue'
 import { resourceModules } from '@/config/modules'
 import { useAuthStore } from '@/modules/auth/auth.store'
 import { executeOperation, getOperation } from '@/services/api-operations'
-import { http } from '@/services/http'
+import { apiClient } from '@/services/api-client'
 import { errorMessage, normalizeList, unwrapData } from '@/utils/api'
 import { cleanPayload, initialValue, mergeModel } from '@/utils/schema'
-import { humanizeField } from '@/config/field-options'
+import { detailFieldLabel, isTechnicalIdField } from '@/utils/detail-display'
 import type { ApiOperation, ResourceActionDefinition } from '@/types/resource'
 
 const props = defineProps<{ moduleKey: string }>()
@@ -31,7 +35,6 @@ const success = ref('')
 const search = ref('')
 const page = ref(1)
 const perPage = ref(25)
-const perPageOptions = [10, 25, 50, 100].map((value) => ({ value, label: `${value} baris` }))
 const total = ref(0)
 const hasMore = ref(false)
 const selected = ref<Record<string, unknown> | null>(null)
@@ -44,17 +47,53 @@ const activeAction = ref<ResourceActionDefinition | null>(null)
 const formModel = ref<Record<string, unknown>>({})
 const showDetail = ref(false)
 const showForm = ref(false)
+const pendingDeleteRow = ref<Record<string, unknown> | null>(null)
+const pendingConfirmAction = ref<{
+  action: ResourceActionDefinition
+  operation: ApiOperation
+  row?: Record<string, unknown>
+} | null>(null)
 const rowMenu = ref<string | null>(null)
+const rowMenuRow = ref<Record<string, unknown> | null>(null)
+const rowMenuButton = ref<HTMLElement | null>(null)
+const rowMenuElement = ref<HTMLElement | null>(null)
+const rowMenuPosition = reactive({ top: 0, left: 0, width: 220 })
 const query = reactive<Record<string, unknown>>({})
 const formHint = ref('')
 const hydrating = ref(false)
 const lastHydratedReference = ref('')
+const showQrLabels = ref(false)
+const qrLabelBusy = ref(false)
+const qrReceipt = ref<Record<string, unknown> | null>(null)
+const qrLabels = ref<GoodsReceiptQrLabel[]>([])
+const qrLabelNotice = ref('')
+let successNoticeTimer: number | undefined
+let errorNoticeTimer: number | undefined
+
+function clearSuccessNotice(): void {
+  window.clearTimeout(successNoticeTimer)
+  successNoticeTimer = undefined
+  success.value = ''
+}
+
+function clearErrorNotice(): void {
+  window.clearTimeout(errorNoticeTimer)
+  errorNoticeTimer = undefined
+  error.value = ''
+}
+
+function clearNotices(): void {
+  clearSuccessNotice()
+  clearErrorNotice()
+}
 
 const listOperation = computed(() => getOperation(definition.value?.listOperationId))
 const createOperation = computed(() => getOperation(definition.value?.createOperationId))
 const updateOperation = computed(() => getOperation(definition.value?.updateOperationId))
 const visibleColumns = computed(() => {
-  const configured = definition.value?.columns ?? []
+  const configured = (definition.value?.columns ?? []).filter(
+    (column) => !isTechnicalIdField(column),
+  )
   const sample = rows.value[0]
   if (!sample) return configured
   const available = configured.filter((column) => column in sample)
@@ -62,10 +101,18 @@ const visibleColumns = computed(() => {
   const inferred = Object.keys(sample).filter(
     (key) =>
       !['deleted_at', 'password_hash', 'lines', 'items'].includes(key) &&
+      !isTechnicalIdField(key) &&
       typeof sample[key] !== 'object',
   )
   return [...new Set([...available, ...inferred])].slice(0, 8)
 })
+const dataTableColumns = computed<DataTableColumn[]>(() =>
+  visibleColumns.value.map((column) => ({
+    key: column,
+    label: detailFieldLabel(column),
+    sortable: true,
+  })),
+)
 const rowActions = computed(() =>
   (definition.value?.actions ?? []).filter((action) =>
     (getOperation(action.operationId)?.parameters ?? []).some(
@@ -81,11 +128,31 @@ const globalActions = computed(() =>
       ),
   ),
 )
+const openRowMenuActions = computed(() =>
+  rowMenuRow.value
+    ? rowActions.value.filter((action) => actionVisible(action, rowMenuRow.value!))
+    : [],
+)
 const pageCount = computed(() =>
   total.value > 0
     ? Math.max(1, Math.ceil(total.value / perPage.value))
     : Math.max(1, page.value + (hasMore.value ? 1 : 0)),
 )
+
+const detailSummary = computed<unknown>(() => {
+  if (definition.value?.key !== 'category-groups') return detail.value
+  const source = asRecord(detail.value)
+  const summary = { ...source }
+  delete summary.categories
+  return summary
+})
+
+const categoryGroupCategories = computed<unknown>(() => {
+  if (definition.value?.key !== 'category-groups') return []
+  const child = childData.value['Kategori dalam Group']
+  if (child !== undefined) return child
+  return asRecord(detail.value).categories ?? []
+})
 
 function rowId(row: Record<string, unknown>): string | number | undefined {
   for (const key of definition.value?.idCandidates ?? ['id']) {
@@ -255,14 +322,18 @@ async function openDetail(row: Record<string, unknown>) {
     detailLoading.value = false
   }
 }
-async function remove(row: Record<string, unknown>) {
+function remove(row: Record<string, unknown>) {
   if (!definition.value?.deleteOperationId) return
-  if (
-    !window.confirm(
-      `Hapus ${definition.value.title} ini? Data akan mengikuti aturan soft delete backend.`,
-    )
-  )
-    return
+  pendingDeleteRow.value = row
+}
+
+function closeDeleteConfirm(): void {
+  if (!saving.value) pendingDeleteRow.value = null
+}
+
+async function confirmDelete(): Promise<void> {
+  const row = pendingDeleteRow.value
+  if (!row || !definition.value?.deleteOperationId) return
   saving.value = true
   error.value = ''
   success.value = ''
@@ -270,7 +341,8 @@ async function remove(row: Record<string, unknown>) {
     const operation = getOperation(definition.value.deleteOperationId)
     if (!operation) return
     await executeOperation(definition.value.deleteOperationId, { path: pathValues(operation, row) })
-    success.value = `${definition.value.title} berhasil dihapus.`
+    success.value = `${definition.value.title} berhasil dipindahkan ke Recycle Bin.`
+    pendingDeleteRow.value = null
     await load()
   } catch (cause) {
     error.value = errorMessage(cause, 'Data gagal dihapus.')
@@ -278,6 +350,7 @@ async function remove(row: Record<string, unknown>) {
     saving.value = false
   }
 }
+
 async function openHtmlAction(action: ResourceActionDefinition, row?: Record<string, unknown>) {
   if (!action.openHtmlPath || !row) return
   const id = rowId(row)
@@ -294,8 +367,11 @@ async function openHtmlAction(action: ResourceActionDefinition, row?: Record<str
   error.value = ''
   try {
     const url = action.openHtmlPath.replace('{id}', encodeURIComponent(String(id)))
-    const response = await http.get<string>(url, { responseType: 'text' })
-    const blobUrl = URL.createObjectURL(new Blob([response.data], { type: 'text/html' }))
+    const html = await apiClient.getRaw<string>(url, {
+      responseType: 'text',
+      accept: 'text/html',
+    })
+    const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
     popup.location.href = blobUrl
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
   } catch (cause) {
@@ -304,6 +380,111 @@ async function openHtmlAction(action: ResourceActionDefinition, row?: Record<str
   } finally {
     saving.value = false
   }
+}
+
+function normalizeQrLabels(value: unknown): GoodsReceiptQrLabel[] {
+  const candidates = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object'
+      ? ((value as Record<string, unknown>).generated_qr_codes ??
+        (value as Record<string, unknown>).data ??
+        [])
+      : []
+  if (!Array.isArray(candidates)) return []
+  return candidates
+    .map((entry) => asRecord(entry))
+    .filter((entry) => typeof entry.qr_code === 'string' && entry.qr_code.trim())
+    .map((entry) => ({
+      unit_id: entry.unit_id as string | number | undefined,
+      receipt_line_id: entry.receipt_line_id as string | number | undefined,
+      item_id: entry.item_id as string | number | undefined,
+      item_code: typeof entry.item_code === 'string' ? entry.item_code : undefined,
+      item_name: typeof entry.item_name === 'string' ? entry.item_name : undefined,
+      part_id: entry.part_id as string | number | undefined,
+      part_number: typeof entry.part_number === 'string' ? entry.part_number : undefined,
+      qr_code: String(entry.qr_code),
+      status: typeof entry.status === 'string' ? entry.status : undefined,
+    }))
+}
+
+function mergeQrLabels(...groups: GoodsReceiptQrLabel[][]): GoodsReceiptQrLabel[] {
+  const labels = new Map<string, GoodsReceiptQrLabel>()
+  for (const group of groups) {
+    for (const label of group) labels.set(label.qr_code, label)
+  }
+  return [...labels.values()]
+}
+
+async function openGoodsReceiptQrLabels(
+  row?: Record<string, unknown>,
+  generateFirst = false,
+): Promise<void> {
+  if (!row) return
+  const id = rowId(row)
+  if (id === undefined) {
+    error.value = 'ID Goods Receipt tidak ditemukan.'
+    return
+  }
+
+  qrLabelBusy.value = true
+  error.value = ''
+  success.value = ''
+  qrLabelNotice.value = ''
+  let generated: GoodsReceiptQrLabel[] = []
+  let generationError = ''
+
+  try {
+    if (generateFirst) {
+      try {
+        const response = await executeOperation<unknown>('GenerateGoodsReceiptQR', {
+          path: { id: String(id) },
+        })
+        generated = normalizeQrLabels(response)
+      } catch (cause) {
+        generationError = errorMessage(cause, 'Generate QR gagal diproses.')
+      }
+    }
+
+    const receipt = asRecord(
+      await executeOperation('FindGoodsReceiptByID', { path: { id: String(id) } }),
+    )
+    const existing = normalizeQrLabels(receipt.generated_qr_codes)
+    const labels = mergeQrLabels(existing, generated)
+
+    if (!labels.length) {
+      if (generationError) throw new Error(generationError)
+      error.value =
+        'Belum ada QR yang dapat dicetak. Pastikan line bertipe SERIAL dan accepted quantity lebih dari nol.'
+      return
+    }
+
+    qrReceipt.value = receipt
+    qrLabels.value = labels
+    qrLabelNotice.value = generateFirst
+      ? generated.length
+        ? `${generated.length} QR baru berhasil dibuat. Total ${labels.length} label siap dicetak.`
+        : generationError
+          ? `QR yang sudah tersimpan berhasil dimuat. Catatan generate: ${generationError}`
+          : `Tidak ada QR baru. Semua ${labels.length} QR yang sudah tersedia dimuat untuk dicetak.`
+      : `${labels.length} QR yang sudah tersedia dimuat untuk dicetak ulang.`
+    showQrLabels.value = true
+    success.value = generated.length
+      ? `${generated.length} QR baru berhasil dibuat.`
+      : 'QR berhasil dimuat untuk dicetak.'
+    if (generateFirst) await load()
+  } catch (cause) {
+    error.value = errorMessage(cause, 'QR Goods Receipt tidak dapat dimuat.')
+  } finally {
+    qrLabelBusy.value = false
+  }
+}
+
+function closeQrLabels(): void {
+  if (qrLabelBusy.value) return
+  showQrLabels.value = false
+  qrReceipt.value = null
+  qrLabels.value = []
+  qrLabelNotice.value = ''
 }
 
 async function lookupItemUnitByQr() {
@@ -335,6 +516,14 @@ async function lookupItemUnitByQr() {
 }
 
 async function beginAction(action: ResourceActionDefinition, row?: Record<string, unknown>) {
+  if (action.handler === 'generate-qr-labels') {
+    await openGoodsReceiptQrLabels(row, true)
+    return
+  }
+  if (action.handler === 'qr-labels') {
+    await openGoodsReceiptQrLabels(row, false)
+    return
+  }
   if (action.openHtmlPath) {
     await openHtmlAction(action, row)
     return
@@ -350,9 +539,23 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
     showForm.value = true
     return
   }
-  if (action.confirm && !window.confirm(action.confirm)) return
+  if (action.confirm) {
+    pendingConfirmAction.value = { action, operation, row }
+    return
+  }
   await runAction(action, operation, row)
 }
+function closeActionConfirm(): void {
+  if (!saving.value) pendingConfirmAction.value = null
+}
+
+async function confirmPendingAction(): Promise<void> {
+  const pending = pendingConfirmAction.value
+  if (!pending) return
+  pendingConfirmAction.value = null
+  await runAction(pending.action, pending.operation, pending.row)
+}
+
 async function runAction(
   action: ResourceActionDefinition,
   operation: ApiOperation,
@@ -509,9 +712,64 @@ function closeDetail() {
   detail.value = null
   childData.value = {}
 }
-function chooseRowAction(action: ResourceActionDefinition, row: Record<string, unknown>) {
+function closeRowMenu(): void {
   rowMenu.value = null
+  rowMenuRow.value = null
+  rowMenuButton.value = null
+}
+
+function positionRowMenu(): void {
+  const button = rowMenuButton.value
+  if (!button || !rowMenu.value) return
+  const buttonRect = button.getBoundingClientRect()
+  const menuWidth = rowMenuPosition.width
+  const menuHeight = rowMenuElement.value?.offsetHeight ?? 220
+  const viewportPadding = 12
+  const left = Math.min(
+    window.innerWidth - menuWidth - viewportPadding,
+    Math.max(viewportPadding, buttonRect.right - menuWidth),
+  )
+  const roomBelow = window.innerHeight - buttonRect.bottom
+  const top =
+    roomBelow >= menuHeight + 12
+      ? buttonRect.bottom + 6
+      : Math.max(viewportPadding, buttonRect.top - menuHeight - 6)
+  rowMenuPosition.left = left
+  rowMenuPosition.top = top
+}
+
+async function toggleRowMenu(event: MouseEvent, row: Record<string, unknown>): Promise<void> {
+  const id = String(rowId(row))
+  if (rowMenu.value === id) {
+    closeRowMenu()
+    return
+  }
+  rowMenu.value = id
+  rowMenuRow.value = row
+  rowMenuButton.value = event.currentTarget as HTMLElement
+  await nextTick()
+  positionRowMenu()
+}
+
+function handleRowMenuOutside(event: MouseEvent): void {
+  const target = event.target as Node | null
+  if (target && (rowMenuElement.value?.contains(target) || rowMenuButton.value?.contains(target)))
+    return
+  closeRowMenu()
+}
+
+function handleRowMenuKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') closeRowMenu()
+}
+
+function chooseRowAction(action: ResourceActionDefinition, row: Record<string, unknown>) {
+  closeRowMenu()
   void beginAction(action, row)
+}
+function chooseOpenRowAction(action: ResourceActionDefinition): void {
+  const row = rowMenuRow.value
+  if (!row) return
+  chooseRowAction(action, row)
 }
 function changePage(next: number) {
   page.value = Math.min(Math.max(1, next), pageCount.value)
@@ -523,13 +781,55 @@ function changePageSize(value?: string | string[]) {
   void load()
 }
 
-onMounted(load)
+watch(success, (message) => {
+  window.clearTimeout(successNoticeTimer)
+  successNoticeTimer = undefined
+  if (!message) return
+  successNoticeTimer = window.setTimeout(() => {
+    success.value = ''
+    successNoticeTimer = undefined
+  }, 5000)
+})
+
+watch(error, (message) => {
+  window.clearTimeout(errorNoticeTimer)
+  errorNoticeTimer = undefined
+  if (!message) return
+  errorNoticeTimer = window.setTimeout(() => {
+    error.value = ''
+    errorNoticeTimer = undefined
+  }, 8000)
+})
+
+onMounted(() => {
+  void load()
+  document.addEventListener('click', handleRowMenuOutside)
+  document.addEventListener('keydown', handleRowMenuKeydown)
+  document.addEventListener('scroll', closeRowMenu, true)
+  window.addEventListener('resize', closeRowMenu)
+})
+
+onBeforeUnmount(() => {
+  clearNotices()
+  window.clearTimeout(searchTimer)
+  document.removeEventListener('click', handleRowMenuOutside)
+  document.removeEventListener('keydown', handleRowMenuKeydown)
+  document.removeEventListener('scroll', closeRowMenu, true)
+  window.removeEventListener('resize', closeRowMenu)
+})
 watch(
   () => props.moduleKey,
   () => {
+    clearNotices()
+    closeRowMenu()
+    showDetail.value = false
+    showForm.value = false
+    showQrLabels.value = false
+    pendingDeleteRow.value = null
+    pendingConfirmAction.value = null
     page.value = 1
     search.value = ''
-    load()
+    void load()
   },
 )
 let searchTimer: number | undefined
@@ -557,7 +857,7 @@ watch(
 </script>
 
 <template>
-  <div v-if="definition" class="page-stack">
+  <div v-if="definition" class="page-stack page-stack--resource">
     <PageHeader :title="definition.title" :description="definition.description">
       <template #actions>
         <div class="page-action-row">
@@ -584,130 +884,115 @@ watch(
       </template>
     </PageHeader>
 
-    <div v-if="error" class="notice notice--danger">{{ error }}</div>
-    <div v-if="success" class="notice notice--success">{{ success }}</div>
+    <div v-if="error" class="notice notice--danger notice--dismissible" role="alert">
+      <span>{{ error }}</span>
+      <button type="button" aria-label="Tutup pesan error" @click="clearErrorNotice">×</button>
+    </div>
+    <div
+      v-if="success"
+      class="notice notice--success notice--dismissible"
+      role="status"
+      aria-live="polite"
+    >
+      <span>{{ success }}</span>
+      <button type="button" aria-label="Tutup pesan sukses" @click="clearSuccessNotice">×</button>
+    </div>
 
-    <AppCard flush>
-      <div class="table-toolbar">
-        <label class="table-search"
-          ><Search :size="17" /><input v-model="search" type="search" placeholder="Cari data…"
-        /></label>
-        <div class="table-toolbar__right">
-          <AppSelect
-            :model-value="String(perPage)"
-            :options="perPageOptions"
-            placeholder="Jumlah baris"
-            compact
-            :searchable="false"
-            @update:model-value="changePageSize"
-          />
-          <button
-            class="icon-button"
-            type="button"
-            aria-label="Muat ulang"
-            :disabled="loading"
-            @click="load"
-          >
-            <RefreshCw :size="18" :class="{ spin: loading }" />
-          </button>
-        </div>
-      </div>
-
-      <div v-if="loading" class="table-loading">
-        <span v-for="item in 7" :key="item" class="skeleton skeleton--row"></span>
-      </div>
-      <div v-else-if="rows.length" class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th v-for="column in visibleColumns" :key="column">{{ humanizeField(column) }}</th>
-              <th class="table-actions-column">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in rows" :key="String(rowId(row) ?? index)">
-              <td v-for="column in visibleColumns" :key="column" :title="displayValue(row[column])">
-                <StatusBadge v-if="isStatusColumn(column)" :value="row[column]" /><template
-                  v-else
-                  >{{ displayValue(row[column]) }}</template
-                >
-              </td>
-              <td class="table-actions-column">
-                <div class="row-actions">
-                  <button
-                    class="table-action"
-                    type="button"
-                    title="Detail"
-                    @click="openDetail(row)"
-                  >
-                    <Eye :size="16" />
-                  </button>
-                  <button
-                    v-if="
-                      updateOperation && can(definition.updatePermission) && !definition.readOnly
-                    "
-                    class="table-action"
-                    type="button"
-                    title="Edit"
-                    @click="openEdit(row)"
-                  >
-                    <Pencil :size="16" />
-                  </button>
-                  <button
-                    v-if="definition.deleteOperationId && can(definition.deletePermission)"
-                    class="table-action table-action--danger"
-                    type="button"
-                    title="Hapus"
-                    @click="remove(row)"
-                  >
-                    <Trash2 :size="16" />
-                  </button>
-                  <div
-                    v-if="rowActions.some((action) => actionVisible(action, row))"
-                    class="action-menu"
-                  >
-                    <button
-                      class="table-action"
-                      type="button"
-                      @click="rowMenu = rowMenu === String(rowId(row)) ? null : String(rowId(row))"
-                    >
-                      <MoreHorizontal :size="17" />
-                    </button>
-                    <div v-if="rowMenu === String(rowId(row))" class="action-menu__popover">
-                      <button
-                        v-for="action in rowActions.filter((item) => actionVisible(item, row))"
-                        :key="action.operationId"
-                        type="button"
-                        :class="{ 'is-danger': action.tone === 'danger' }"
-                        @click="chooseRowAction(action, row)"
-                      >
-                        {{ action.label }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <EmptyState
-        v-else
-        :title="`Belum ada ${definition.title}`"
-        description="Data akan muncul setelah tersedia pada backend."
-      />
-      <div v-if="rows.length" class="pagination-bar">
-        <span
-          >Halaman {{ page
-          }}<template v-if="total"> dari {{ pageCount }} · {{ total }} data</template
-          ><template v-else> · {{ rows.length }} data pada halaman ini</template></span
-        >
-        <div>
-          <button :disabled="page <= 1" @click="changePage(page - 1)">Sebelumnya</button
-          ><button :disabled="page >= pageCount" @click="changePage(page + 1)">Berikutnya</button>
-        </div>
-      </div>
+    <AppCard flush class="resource-table-card">
+      <AppDataTable
+        v-model:search="search"
+        :rows="rows"
+        :columns="dataTableColumns"
+        :loading="loading"
+        :page="page"
+        :per-page="perPage"
+        :total="total"
+        :has-more="hasMore"
+        :row-key="(row, index) => String(rowId(row) ?? index)"
+        server-side
+        show-actions
+        :empty-title="`Belum ada ${definition.title}`"
+        empty-description="Data akan muncul setelah tersedia pada backend."
+        @update:per-page="changePageSize(String($event))"
+        @page-change="changePage"
+        @refresh="load"
+      >
+        <template #cell="{ row, column }">
+          <StatusBadge v-if="isStatusColumn(column.key)" :value="row[column.key]" />
+          <template v-else>{{ displayValue(row[column.key]) }}</template>
+        </template>
+        <template #actions="{ row }">
+          <div class="row-actions">
+            <button class="table-action" type="button" title="Detail" @click="openDetail(row)">
+              <Eye :size="16" />
+            </button>
+            <button
+              v-if="updateOperation && can(definition.updatePermission) && !definition.readOnly"
+              class="table-action"
+              type="button"
+              title="Edit"
+              @click="openEdit(row)"
+            >
+              <Pencil :size="16" />
+            </button>
+            <button
+              v-if="definition.deleteOperationId && can(definition.deletePermission)"
+              class="table-action table-action--danger"
+              type="button"
+              title="Hapus"
+              @click="remove(row)"
+            >
+              <Trash2 :size="16" />
+            </button>
+            <div v-if="rowActions.some((action) => actionVisible(action, row))" class="action-menu">
+              <button
+                class="table-action"
+                type="button"
+                aria-label="Buka aksi lainnya"
+                :aria-expanded="rowMenu === String(rowId(row))"
+                @click.stop="toggleRowMenu($event, row)"
+              >
+                <MoreHorizontal :size="17" />
+              </button>
+            </div>
+          </div>
+        </template>
+      </AppDataTable>
     </AppCard>
+
+    <Teleport to="body">
+      <div
+        v-if="rowMenu && rowMenuRow"
+        ref="rowMenuElement"
+        class="action-menu__popover action-menu__popover--portal"
+        :style="{
+          top: `${rowMenuPosition.top}px`,
+          left: `${rowMenuPosition.left}px`,
+          width: `${rowMenuPosition.width}px`,
+        }"
+        role="menu"
+        @click.stop
+      >
+        <button
+          v-for="action in openRowMenuActions"
+          :key="action.operationId"
+          type="button"
+          role="menuitem"
+          :class="{ 'is-danger': action.tone === 'danger' }"
+          @click="chooseOpenRowAction(action)"
+        >
+          {{ action.label }}
+        </button>
+      </div>
+    </Teleport>
+
+    <GoodsReceiptQrModal
+      :open="showQrLabels"
+      :receipt="qrReceipt"
+      :codes="qrLabels"
+      :notice="qrLabelNotice"
+      @close="closeQrLabels"
+    />
 
     <AppModal
       :open="showForm"
@@ -721,6 +1006,7 @@ watch(
       :description="formOperation?.summary"
       size="xl"
       :busy="saving"
+      :layer="showDetail ? 2 : 1"
       @close="closeForm"
     >
       <div
@@ -755,6 +1041,7 @@ watch(
       :title="`Detail ${definition.title}`"
       size="xl"
       :busy="detailLoading"
+      :layer="1"
       @close="closeDetail"
     >
       <div v-if="detailLoading" class="table-loading">
@@ -770,11 +1057,22 @@ watch(
             >{{ action.label }}</AppButton
           >
         </div>
-        <StructuredData :value="detail" />
-        <section v-for="(value, title) in childData" :key="title" class="detail-section">
-          <h3>{{ title }}</h3>
-          <StructuredData :value="value" />
-        </section>
+        <StructuredData :value="detailSummary" />
+        <RelatedDataTable
+          v-if="definition.key === 'category-groups'"
+          title="Kategori dalam Group"
+          :value="categoryGroupCategories"
+          empty-text="Belum ada kategori di dalam group ini."
+        />
+        <template v-else>
+          <RelatedDataTable
+            v-for="(value, title) in childData"
+            :key="title"
+            :title="title"
+            :value="value"
+            :empty-text="`Belum ada ${String(title).toLowerCase()}.`"
+          />
+        </template>
         <DocumentAttachments
           v-if="
             definition.attachmentEntityType &&
@@ -789,5 +1087,31 @@ watch(
       </template>
       <template #footer><AppButton variant="ghost" @click="closeDetail">Tutup</AppButton></template>
     </AppModal>
+
+    <AppConfirmDialog
+      :open="Boolean(pendingDeleteRow)"
+      title="Konfirmasi soft delete"
+      :message="`Hapus ${definition.title} ini?`"
+      detail="Data tidak dihapus permanen. Data mengikuti aturan soft delete backend dan dapat dipulihkan melalui Recycle Bin apabila restore tersedia."
+      confirm-label="Ya, hapus"
+      tone="danger"
+      :busy="saving"
+      :layer="3"
+      @close="closeDeleteConfirm"
+      @confirm="confirmDelete"
+    />
+
+    <AppConfirmDialog
+      :open="Boolean(pendingConfirmAction)"
+      :title="pendingConfirmAction?.action.label ?? 'Konfirmasi tindakan'"
+      :message="pendingConfirmAction?.action.confirm ?? 'Lanjutkan tindakan ini?'"
+      detail="Periksa kembali data sebelum melanjutkan."
+      confirm-label="Ya, lanjutkan"
+      tone="warning"
+      :busy="saving"
+      :layer="3"
+      @close="closeActionConfirm"
+      @confirm="confirmPendingAction"
+    />
   </div>
 </template>

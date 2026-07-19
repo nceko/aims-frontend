@@ -1,6 +1,5 @@
 import metadata from '@/generated/api-metadata.json'
 import { apiClient } from './api-client'
-import { http } from './http'
 import type { ApiOperation } from '@/types/resource'
 
 const operationMap = metadata.operations as unknown as Record<string, ApiOperation>
@@ -38,8 +37,7 @@ export async function executeOperation<T = unknown>(
   switch (operation.method) {
     case 'GET':
       if (options.raw) {
-        const { data } = await http.get<T>(url, { params: options.query })
-        return data
+        return apiClient.getRaw<T>(url, { params: options.query })
       }
       return apiClient.get<T>(url, options.query)
     case 'POST':
