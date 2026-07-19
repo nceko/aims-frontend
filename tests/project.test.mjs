@@ -41,6 +41,10 @@ const resourceWorkbench = await readFile(
 )
 const authApi = await readFile(new URL('../src/modules/auth/auth.api.ts', import.meta.url), 'utf8')
 const authTypes = await readFile(new URL('../src/types/auth.ts', import.meta.url), 'utf8')
+const resourceIdUtils = await readFile(
+  new URL('../src/utils/resource-id.ts', import.meta.url),
+  'utf8',
+)
 
 function quotedValues(source, pattern) {
   return [...source.matchAll(pattern)].map((match) => match[1]).filter(Boolean)
@@ -350,16 +354,30 @@ test('datatable action buttons stay horizontal in a fixed right-side column', ()
   assert.match(mainStyles, /table-actions-column\s*\{[^}]*min-width:\s*176px/s)
 })
 
-test('context options use endpoint-specific query parameters and cached login access', () => {
+test('all options endpoints are requested without limit or pagination parameters', async () => {
+  const optionField = await readFile(
+    new URL('../src/components/data/ApiOptionField.vue', import.meta.url),
+    'utf8',
+  )
+  const queryPolicy = await readFile(
+    new URL('../src/services/query-policy.ts', import.meta.url),
+    'utf8',
+  )
+
   assert.match(
     authApi,
-    /const locationParams = companyId \? \{ company_id: companyId, limit: 100 \}/,
+    /const locationParams = companyId \? \{ company_id: companyId \} : undefined/,
   )
   assert.match(
     authApi,
     /const categoryGroupParams = companyId \? \{ company_id: companyId \} : undefined/,
   )
-  assert.doesNotMatch(authApi, /category-groups\/options', params/)
+  assert.doesNotMatch(authApi, /limit\s*:/)
+  assert.doesNotMatch(optionField, /query\.(limit|per_page|page_size)\s*=/)
+  assert.match(apiClientSource, /sanitizeOptionsParams/)
+  assert.match(queryPolicy, /isOptionsEndpoint/)
+  assert.match(queryPolicy, /'limit'/)
+  assert.match(queryPolicy, /'per_page'/)
   assert.match(contextSwitcher, /hasCachedOptions/)
   assert.match(contextSwitcher, /if \(!hasCachedOptions\)/)
 })
@@ -489,4 +507,13 @@ test('technical IDs stay available internally but are hidden from user-facing de
   assert.match(resourceWorkbench, /rowId\(row/)
   assert.match(detailDisplaySource, /detailFieldLabel/)
   assert.match(detailDisplaySource, /'_name'/)
+})
+
+test('resource actions keep hidden technical IDs available for API path parameters', () => {
+  assert.match(modules, /idCandidates: \['id_company', 'company_id', 'id'\]/)
+  assert.match(resourceIdUtils, /key\.startsWith\('id_'\)/)
+  assert.match(resourceIdUtils, /key\.endsWith\('_id'\)/)
+  assert.match(resourceIdUtils, /resolveResourcePathValue/)
+  assert.match(resourceWorkbench, /resolveResourceId\(row, definition\.value\?\.idCandidates/)
+  assert.match(resourceWorkbench, /resolveResourcePathValue\(/)
 })

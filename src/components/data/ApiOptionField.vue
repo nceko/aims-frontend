@@ -78,8 +78,6 @@ async function load() {
     const value = props.rootModel[modelKey]
     if (value !== undefined && value !== null && value !== '') query[parameter] = value
   }
-  query.limit = 200
-  query.per_page = 200
   loading.value = true
   try {
     const payload = await apiClient.get<unknown>(path, query)

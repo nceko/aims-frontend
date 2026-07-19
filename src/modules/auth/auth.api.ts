@@ -48,9 +48,8 @@ export const authApi = {
     return companies.map(normalizeCompany)
   },
   contextOptions: async (companyId?: number) => {
-    // locations/options menerima limit, sedangkan category-groups/options tidak.
-    // Jangan mengirim query yang tidak didukung karena backend dapat merespons 500.
-    const locationParams = companyId ? { company_id: companyId, limit: 100 } : { limit: 100 }
+    // Semua endpoint /options hanya menerima filter yang relevan, tanpa limit/pagination.
+    const locationParams = companyId ? { company_id: companyId } : undefined
     const categoryGroupParams = companyId ? { company_id: companyId } : undefined
     const [locations, categoryGroups] = await Promise.all([
       apiClient.get<ApiOptionResponse[]>('/api/v1/locations/options', locationParams),

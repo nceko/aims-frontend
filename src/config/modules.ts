@@ -24,7 +24,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     deletePermission: 'organization.companies.delete',
     superAdminOnly: true,
     columns: ['company_code', 'company_name', 'is_active', 'created_at', 'updated_at'],
-    idCandidates: ['company_id', 'id'],
+    idCandidates: ['id_company', 'company_id', 'id'],
   }),
   'location-types': crud({
     key: 'location-types',
@@ -1483,7 +1483,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     superAdminOnly: true,
     readOnly: true,
     columns: ['created_at', 'actor_name', 'action', 'entity_type', 'entity_id', 'ip_address'],
-    idCandidates: ['audit_id', 'id'],
+    idCandidates: ['audit_log_id', 'audit_id', 'id'],
   }),
   'login-histories': crud({
     key: 'login-histories',
@@ -1509,7 +1509,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     superAdminOnly: true,
     readOnly: true,
     columns: ['user_name', 'email', 'device_name', 'ip_address', 'created_at', 'expires_at'],
-    idCandidates: ['session_id', 'id'],
+    idCandidates: ['refresh_token_id', 'session_id', 'id'],
   }),
 
   'stock-reconciliation': crud({

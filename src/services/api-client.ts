@@ -1,6 +1,7 @@
 import type { AxiosRequestConfig, AxiosResponse, ResponseType } from 'axios'
 import { http } from './http'
 import { unwrapData } from '@/utils/api'
+import { sanitizeOptionsParams } from './query-policy'
 
 export interface DownloadResult {
   blob: Blob
@@ -14,7 +15,7 @@ async function rawResponse<T>(config: AxiosRequestConfig): Promise<AxiosResponse
 
 export const apiClient = {
   async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-    const { data } = await http.get(url, { params })
+    const { data } = await http.get(url, { params: sanitizeOptionsParams(url, params) })
     return unwrapData<T>(data)
   },
   async getRaw<T>(
@@ -28,7 +29,7 @@ export const apiClient = {
     const { data } = await rawResponse<T>({
       method: 'GET',
       url,
-      params: options.params,
+      params: sanitizeOptionsParams(url, options.params),
       responseType: options.responseType,
       headers: options.accept ? { Accept: options.accept } : undefined,
     })
@@ -62,7 +63,7 @@ export const apiClient = {
     const response = await rawResponse<Blob>({
       method: 'GET',
       url,
-      params,
+      params: sanitizeOptionsParams(url, params),
       responseType: 'blob',
       headers: { Accept: accept },
     })

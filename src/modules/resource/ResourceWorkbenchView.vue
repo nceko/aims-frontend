@@ -22,6 +22,7 @@ import { apiClient } from '@/services/api-client'
 import { errorMessage, normalizeList, unwrapData } from '@/utils/api'
 import { cleanPayload, initialValue, mergeModel } from '@/utils/schema'
 import { detailFieldLabel, isTechnicalIdField } from '@/utils/detail-display'
+import { resolveResourceId, resolveResourcePathValue } from '@/utils/resource-id'
 import type { ApiOperation, ResourceActionDefinition } from '@/types/resource'
 
 const props = defineProps<{ moduleKey: string }>()
@@ -155,14 +156,7 @@ const categoryGroupCategories = computed<unknown>(() => {
 })
 
 function rowId(row: Record<string, unknown>): string | number | undefined {
-  for (const key of definition.value?.idCandidates ?? ['id']) {
-    const value = row[key]
-    if (typeof value === 'string' || typeof value === 'number') return value
-  }
-  for (const [key, value] of Object.entries(row)) {
-    if (key.endsWith('_id') && (typeof value === 'string' || typeof value === 'number'))
-      return value
-  }
+  return resolveResourceId(row, definition.value?.idCandidates ?? ['id'])
 }
 function rowStatus(row: Record<string, unknown>): string {
   for (const key of definition.value?.statusCandidates ?? ['status']) {
@@ -221,11 +215,13 @@ function pathValues(
   action?: ResourceActionDefinition,
 ): Record<string, string | number | undefined> {
   const values: Record<string, string | number | undefined> = {}
-  const id = row ? rowId(row) : undefined
   for (const parameter of operation.parameters.filter((item) => item.in === 'path')) {
-    const direct = row?.[parameter.name]
-    const preferred = action?.pathValueKey ? row?.[action.pathValueKey] : undefined
-    values[parameter.name] = (direct ?? preferred ?? id) as string | number | undefined
+    values[parameter.name] = resolveResourcePathValue(
+      parameter.name,
+      row,
+      definition.value?.idCandidates ?? ['id'],
+      action?.pathValueKey,
+    )
   }
   return values
 }
