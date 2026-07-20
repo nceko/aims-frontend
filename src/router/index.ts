@@ -32,6 +32,12 @@ const router = createRouter({
           meta: { permission: 'dashboard.read' },
         },
         {
+          path: 'procurement/goods-receipts/:id/scan-in',
+          name: 'goods-receipt-scan-in',
+          component: () => import('@/modules/workflow/GoodsReceiptScanInView.vue'),
+          meta: { permission: 'transaction.goods_receipts.post_scanned_to_stock' },
+        },
+        {
           path: 'inventory/direct-issues',
           name: 'inventory-direct-issues',
           component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),

@@ -413,12 +413,30 @@ const goodsReceiptQrModal = await readFile(
   'utf8',
 )
 
-test('goods receipt QR generation opens a printable preview and supports PDF output', () => {
-  assert.match(modules, /handler: 'generate-qr-labels'/)
-  assert.match(modules, /handler: 'qr-labels'/)
-  assert.match(resourceWorkbench, /openGoodsReceiptQrLabels/)
-  assert.match(resourceWorkbench, /generated_qr_codes/)
-  assert.match(resourceWorkbench, /<GoodsReceiptQrModal/)
+const goodsReceiptScanInView = await readFile(
+  new URL('../src/modules/workflow/GoodsReceiptScanInView.vue', import.meta.url),
+  'utf8',
+)
+const routerSource = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
+
+test('goods receipt uses one dedicated scan-in workspace with camera and one stock post', () => {
+  assert.match(modules, /label: 'Scan Masuk'/)
+  assert.match(modules, /handler: 'goods-receipt-scan-in'/)
+  assert.match(resourceWorkbench, /goods-receipt-scan-in/)
+  assert.match(routerSource, /goods-receipts\/:id\/scan-in/)
+  assert.match(goodsReceiptScanInView, /getUserMedia/)
+  assert.match(goodsReceiptScanInView, /BrowserQRCodeReader/)
+  assert.match(goodsReceiptScanInView, /PreviewGoodsReceiptScan/)
+  assert.match(goodsReceiptScanInView, /PostScannedGoodsReceiptToStock/)
+  assert.match(goodsReceiptScanInView, /serial_scans/)
+  assert.match(goodsReceiptScanInView, /qty_scans/)
+  assert.match(goodsReceiptScanInView, /Post ke Stok/)
+})
+
+test('goods receipt scan workspace keeps QR generation and printable preview together', () => {
+  assert.match(goodsReceiptScanInView, /GenerateGoodsReceiptQR/)
+  assert.match(goodsReceiptScanInView, /generated_qr_codes/)
+  assert.match(goodsReceiptScanInView, /<GoodsReceiptQrModal/)
   assert.match(goodsReceiptQrModal, /QRCode\.toDataURL/)
   assert.match(goodsReceiptQrModal, /import\('jspdf'\)/)
   assert.match(goodsReceiptQrModal, /Download PDF/)

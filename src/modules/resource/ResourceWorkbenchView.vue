@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Eye, Pencil, Plus, QrCode, Trash2, MoreHorizontal } from '@lucide/vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppModal from '@/components/ui/AppModal.vue'
@@ -29,6 +29,7 @@ import type { ApiOperation, ResourceActionDefinition } from '@/types/resource'
 const props = defineProps<{ moduleKey: string }>()
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const definition = computed(() => resourceModules[props.moduleKey])
 const displayTitle = computed(() =>
   String(route.meta.pageTitle ?? definition.value?.title ?? 'Data'),
@@ -540,6 +541,16 @@ async function lookupItemUnitByQr() {
 }
 
 async function beginAction(action: ResourceActionDefinition, row?: Record<string, unknown>) {
+  if (action.handler === 'goods-receipt-scan-in') {
+    if (!row) return
+    const id = rowId(row)
+    if (id === undefined) {
+      error.value = 'ID Goods Receipt tidak ditemukan.'
+      return
+    }
+    await router.push(`/procurement/goods-receipts/${encodeURIComponent(String(id))}/scan-in`)
+    return
+  }
   if (action.handler === 'generate-qr-labels') {
     await openGoodsReceiptQrLabels(row, true)
     return
