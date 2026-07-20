@@ -3969,6 +3969,44 @@ html[data-theme='dark'] .related-data-table__table tbody tr:hover td {
   background: rgba(255, 255, 255, 0.025);
 }
 
+html[data-theme='dark'] .detail-field,
+html[data-theme='dark'] .structured-array__item {
+  background: #102433;
+  border-color: var(--aims-border);
+}
+html[data-theme='dark'] .detail-field dt,
+html[data-theme='dark'] .structured-array__item > strong,
+html[data-theme='dark'] .detail-section > h3,
+html[data-theme='dark'] .attachments-panel h3,
+html[data-theme='dark'] .related-data-table__header p,
+html[data-theme='dark'] .related-data-table__empty,
+html[data-theme='dark'] .related-data-table__pagination span {
+  color: var(--aims-muted);
+}
+html[data-theme='dark'] .detail-field dd,
+html[data-theme='dark'] .related-data-table__header h3,
+html[data-theme='dark'] .related-data-table__table td,
+html[data-theme='dark'] .related-data-table__search input,
+html[data-theme='dark'] .attachment-item__name,
+html[data-theme='dark'] .attachment-item__meta {
+  color: var(--aims-text);
+}
+html[data-theme='dark'] .attachments-panel,
+html[data-theme='dark'] .detail-section {
+  border-top-color: var(--aims-border);
+}
+html[data-theme='dark'] .attachments-panel .field__control,
+html[data-theme='dark'] .attachments-panel input[type='file'] {
+  color: var(--aims-text);
+  background: #102433;
+  border-color: var(--aims-border);
+}
+html[data-theme='dark'] .attachments-panel input[type='file']::file-selector-button {
+  color: var(--aims-text);
+  background: #132838;
+  border: 1px solid var(--aims-border);
+}
+
 @media (max-width: 720px) {
   .related-data-table__header {
     align-items: stretch;
