@@ -47,7 +47,7 @@ export const navigation: NavItem[] = [
         permission: 'organization.location_types.read',
       },
       {
-        label: 'Location',
+        label: 'Lokasi',
         to: '/organization/locations',
         permission: 'organization.locations.read',
       },
@@ -57,21 +57,25 @@ export const navigation: NavItem[] = [
         permission: 'warehouse.warehouses.read',
       },
       {
-        label: 'Division',
+        label: 'Divisi',
         to: '/organization/divisions',
         permission: 'organization.divisions.read',
       },
       {
-        label: 'Employee',
+        label: 'Pegawai',
         to: '/organization/employees',
         permission: 'organization.employees.read',
       },
       {
-        label: 'Responsibility Directory',
+        label: 'Direktori Penanggung Jawab',
         to: '/organization/responsibilities',
         permission: 'organization.responsibilities.read',
       },
-      { label: 'Vehicle', to: '/organization/vehicles', permission: 'organization.vehicles.read' },
+      {
+        label: 'Kendaraan',
+        to: '/organization/vehicles',
+        permission: 'organization.vehicles.read',
+      },
     ],
   },
   {
@@ -86,21 +90,32 @@ export const navigation: NavItem[] = [
       { label: 'Category', to: '/catalog/categories', permission: 'catalog.categories.read' },
       { label: 'UOM', to: '/catalog/uoms', permission: 'catalog.uoms.read' },
       { label: 'Brand', to: '/catalog/brands', permission: 'catalog.brands.read' },
-      { label: 'Item', to: '/catalog/items', permission: 'catalog.items.read' },
       {
-        label: 'Part Number',
-        to: '/catalog/item-part-numbers',
-        permission: 'catalog.item_part_numbers.read',
-      },
-      {
-        label: 'Konversi UOM',
-        to: '/catalog/item-uom-conversions',
-        permission: 'catalog.item_uom_conversions.read',
-      },
-      {
-        label: 'Supplier Item',
-        to: '/catalog/item-suppliers',
-        permission: 'catalog.item_suppliers.read',
+        label: 'Item',
+        permissionAny: [
+          'catalog.items.read',
+          'catalog.item_part_numbers.read',
+          'catalog.item_suppliers.read',
+          'catalog.item_uom_conversions.read',
+        ],
+        children: [
+          { label: 'Master Item', to: '/catalog/items', permission: 'catalog.items.read' },
+          {
+            label: 'Part Number',
+            to: '/catalog/item-part-numbers',
+            permission: 'catalog.item_part_numbers.read',
+          },
+          {
+            label: 'Supplier Item',
+            to: '/catalog/item-suppliers',
+            permission: 'catalog.item_suppliers.read',
+          },
+          {
+            label: 'Konversi UOM',
+            to: '/catalog/item-uom-conversions',
+            permission: 'catalog.item_uom_conversions.read',
+          },
+        ],
       },
       { label: 'Supplier', to: '/catalog/suppliers', permission: 'catalog.suppliers.read' },
       {
@@ -111,7 +126,7 @@ export const navigation: NavItem[] = [
     ],
   },
   {
-    label: 'Pembelian',
+    label: 'Pengadaan',
     icon: ShoppingCart,
     children: [
       {
@@ -130,7 +145,7 @@ export const navigation: NavItem[] = [
         permission: 'transaction.landed_costs.read',
       },
       {
-        label: 'Komplain Vendor',
+        label: 'Komplain / Retur Vendor',
         to: '/procurement/complaints',
         permission: 'transaction.complaints.read',
       },
@@ -140,75 +155,175 @@ export const navigation: NavItem[] = [
     label: 'Inventory',
     icon: Warehouse,
     children: [
-      { label: 'Stock Balance', to: '/inventory/stocks', permission: 'inventory.stocks.read' },
       {
-        label: 'Item Unit / QR',
-        to: '/inventory/item-units',
-        permission: 'inventory.item_units.read',
+        label: 'Persediaan',
+        permissionAny: [
+          'inventory.stocks.read',
+          'inventory.item_units.read',
+          'inventory.stock_thresholds.read',
+          'inventory.cost_balances.read',
+          'inventory.cost_movements.read',
+        ],
+        children: [
+          { label: 'Saldo Stok', to: '/inventory/stocks', permission: 'inventory.stocks.read' },
+          {
+            label: 'Unit Barang & QR',
+            to: '/inventory/item-units',
+            permission: 'inventory.item_units.read',
+          },
+          {
+            label: 'Pengaturan Minimum Stok',
+            to: '/inventory/stock-thresholds',
+            permission: 'inventory.stock_thresholds.read',
+          },
+          {
+            label: 'Item Low Stock',
+            to: '/inventory/low-stock',
+            permission: 'inventory.stock_thresholds.read',
+          },
+          {
+            label: 'Nilai Persediaan',
+            to: '/inventory/cost-balances',
+            permission: 'inventory.cost_balances.read',
+          },
+          {
+            label: 'Pergerakan Nilai',
+            to: '/inventory/cost-movements',
+            permission: 'inventory.cost_movements.read',
+          },
+        ],
       },
       {
-        label: 'Minimum Stock',
-        to: '/inventory/stock-thresholds',
-        permission: 'inventory.stock_thresholds.read',
+        label: 'Permintaan & Pengeluaran',
+        permissionAny: ['transaction.item_requests.read', 'transaction.item_usages.read'],
+        children: [
+          {
+            label: 'Permintaan Barang',
+            to: '/inventory/item-requests',
+            permission: 'transaction.item_requests.read',
+          },
+          {
+            label: 'Pengeluaran Berdasarkan Permintaan',
+            to: '/inventory/item-usages',
+            permission: 'transaction.item_usages.read',
+          },
+          {
+            label: 'Pengambilan Langsung',
+            to: '/inventory/direct-issues',
+            permission: 'transaction.item_usages.read',
+          },
+        ],
       },
       {
-        label: 'Low Stock',
-        to: '/inventory/low-stock',
-        permission: 'inventory.stock_thresholds.read',
+        label: 'Distribusi',
+        permissionAny: ['transaction.delivery_orders.read'],
+        children: [
+          {
+            label: 'Surat Jalan / Transfer Antar Gudang',
+            to: '/inventory/delivery-orders',
+            permission: 'transaction.delivery_orders.read',
+          },
+        ],
       },
       {
-        label: 'Permintaan Barang',
-        to: '/inventory/item-requests',
-        permission: 'transaction.item_requests.read',
-      },
-      {
-        label: 'Surat Jalan',
-        to: '/inventory/delivery-orders',
-        permission: 'transaction.delivery_orders.read',
-      },
-      {
-        label: 'Pemakaian Barang',
-        to: '/inventory/item-usages',
-        permission: 'transaction.item_usages.read',
-      },
-      {
-        label: 'Stock Adjustment',
-        to: '/inventory/stock-adjustments',
-        permission: 'inventory.stock_adjustments.read',
-      },
-      {
-        label: 'Stock Opname',
-        to: '/inventory/stock-opnames',
-        permission: 'inventory.stock_opnames.read',
-      },
-      {
-        label: 'Cost Balance',
-        to: '/inventory/cost-balances',
-        permission: 'inventory.cost_balances.read',
-      },
-      {
-        label: 'Cost Movement',
-        to: '/inventory/cost-movements',
-        permission: 'inventory.cost_movements.read',
+        label: 'Kontrol Stok',
+        permissionAny: [
+          'inventory.stock_adjustments.read',
+          'inventory.stock_opnames.read',
+          'maintenance.stock_reconciliation.read',
+        ],
+        children: [
+          {
+            label: 'Stock Adjustment',
+            to: '/inventory/stock-adjustments',
+            permission: 'inventory.stock_adjustments.read',
+          },
+          {
+            label: 'Stock Opname',
+            to: '/inventory/stock-opnames',
+            permission: 'inventory.stock_opnames.read',
+          },
+          {
+            label: 'Rekonsiliasi Stok',
+            to: '/maintenance/stock-reconciliation',
+            permission: 'maintenance.stock_reconciliation.read',
+          },
+        ],
       },
     ],
   },
   {
-    label: 'Asset Management',
+    label: 'Manajemen Aset',
     icon: PackageCheck,
     children: [
-      { label: 'Asset Register', to: '/assets/register', permission: 'inventory.assets.read' },
       {
-        label: 'Maintenance',
+        label: 'Ringkasan Aset',
+        to: '/assets/overview',
+        permission: 'inventory.assets.read',
+      },
+      {
+        label: 'Register Aset',
+        permissionAny: ['inventory.assets.read', 'inventory.assets.update'],
+        children: [
+          { label: 'Semua Aset', to: '/assets/register', permission: 'inventory.assets.read' },
+          {
+            label: 'Aset dari Gudang',
+            to: '/assets/from-warehouse',
+            permission: 'inventory.assets.read',
+          },
+          {
+            label: 'Aset Langsung',
+            to: '/assets/direct-acquisitions',
+            permission: 'inventory.assets.read',
+          },
+          {
+            label: 'Migrasi / Aset Existing',
+            to: '/assets/migrations',
+            permission: 'inventory.assets.read',
+          },
+        ],
+      },
+      {
+        label: 'Penugasan Aset',
+        permissionAny: [
+          'inventory.asset_assignments.read',
+          'inventory.asset_assignments.create',
+          'inventory.asset_assignments.return',
+          'inventory.asset_assignments.transfer',
+        ],
+        children: [
+          {
+            label: 'Assignment Aktif',
+            to: '/assets/assignments',
+            permission: 'inventory.asset_assignments.read',
+          },
+          {
+            label: 'Pengembalian Aset',
+            to: '/assets/returns',
+            permission: 'inventory.asset_assignments.read',
+          },
+          {
+            label: 'Transfer Penanggung Jawab',
+            to: '/assets/transfers',
+            permission: 'inventory.asset_assignments.read',
+          },
+        ],
+      },
+      {
+        label: 'Maintenance Aset',
         to: '/assets/maintenances',
         permission: 'inventory.asset_maintenances.read',
       },
       {
-        label: 'Asset Hilang',
+        label: 'Kerusakan & Kehilangan',
         to: '/assets/loss-cases',
         permission: 'inventory.asset_losses.read',
       },
-      { label: 'Disposal', to: '/assets/disposals', permission: 'inventory.asset_disposals.read' },
+      {
+        label: 'Disposal / Penghapusan',
+        to: '/assets/disposals',
+        permission: 'inventory.asset_disposals.read',
+      },
       {
         label: 'Penyusutan',
         to: '/assets/depreciation',
@@ -257,7 +372,7 @@ export const navigation: NavItem[] = [
     permission: 'operations.notifications.read',
   },
   {
-    label: 'Administration',
+    label: 'Administrasi',
     icon: ShieldCheck,
     superAdminOnly: true,
     children: [
@@ -300,16 +415,11 @@ export const navigation: NavItem[] = [
     ],
   },
   {
-    label: 'Maintenance',
+    label: 'Pemeliharaan Sistem',
     icon: Settings,
     children: [
       {
-        label: 'Stock Reconciliation',
-        to: '/maintenance/stock-reconciliation',
-        permission: 'maintenance.stock_reconciliation.read',
-      },
-      {
-        label: 'Cost Reconciliation',
+        label: 'Rekonsiliasi Cost',
         to: '/maintenance/cost-reconciliation',
         permission: 'maintenance.cost_reconciliation.read',
       },
@@ -319,7 +429,24 @@ export const navigation: NavItem[] = [
 ]
 
 export const dashboardHighlights = [
-  { label: 'Stock', icon: Warehouse, to: '/inventory/stocks', permission: 'inventory.stocks.read' },
+  {
+    label: 'Saldo Stok',
+    icon: Warehouse,
+    to: '/inventory/stocks',
+    permission: 'inventory.stocks.read',
+  },
+  {
+    label: 'Permintaan Barang',
+    icon: ClipboardCheck,
+    to: '/inventory/item-requests',
+    permission: 'transaction.item_requests.read',
+  },
+  {
+    label: 'Pengambilan Langsung',
+    icon: PackageCheck,
+    to: '/inventory/direct-issues',
+    permission: 'transaction.item_usages.read',
+  },
   {
     label: 'Purchase Order',
     icon: ShoppingCart,
@@ -327,7 +454,7 @@ export const dashboardHighlights = [
     permission: 'transaction.purchase_orders.read',
   },
   {
-    label: 'Penerimaan',
+    label: 'Penerimaan Barang',
     icon: Boxes,
     to: '/procurement/goods-receipts',
     permission: 'transaction.goods_receipts.read',
@@ -338,10 +465,15 @@ export const dashboardHighlights = [
     to: '/inventory/delivery-orders',
     permission: 'transaction.delivery_orders.read',
   },
-  { label: 'Asset', icon: Wrench, to: '/assets/register', permission: 'inventory.assets.read' },
+  {
+    label: 'Register Aset',
+    icon: Wrench,
+    to: '/assets/register',
+    permission: 'inventory.assets.read',
+  },
   { label: 'Approval', icon: ClipboardCheck, to: '/approvals', permission: 'dashboard.read' },
   {
-    label: 'Costing',
+    label: 'Nilai Persediaan',
     icon: Calculator,
     to: '/inventory/cost-balances',
     permission: 'inventory.cost_balances.read',

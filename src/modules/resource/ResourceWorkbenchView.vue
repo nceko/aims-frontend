@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Eye, Pencil, Plus, QrCode, Trash2, MoreHorizontal } from '@lucide/vue'
+import { useRoute } from 'vue-router'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppModal from '@/components/ui/AppModal.vue'
@@ -27,7 +28,21 @@ import type { ApiOperation, ResourceActionDefinition } from '@/types/resource'
 
 const props = defineProps<{ moduleKey: string }>()
 const auth = useAuthStore()
+const route = useRoute()
 const definition = computed(() => resourceModules[props.moduleKey])
+const displayTitle = computed(() =>
+  String(route.meta.pageTitle ?? definition.value?.title ?? 'Data'),
+)
+const displayDescription = computed(() =>
+  String(route.meta.pageDescription ?? definition.value?.description ?? ''),
+)
+const createButtonLabel = computed(() => String(route.meta.createLabel ?? 'Tambah'))
+const createDefaults = computed<Record<string, unknown>>(() => {
+  const value = route.meta.createDefaults
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+})
 const rows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -129,6 +144,16 @@ const globalActions = computed(() =>
       ),
   ),
 )
+const visibleDetailActions = computed(() => {
+  const allowedOperationIds = Array.isArray(route.meta.detailActionOperationIds)
+    ? (route.meta.detailActionOperationIds as string[])
+    : []
+  return (definition.value?.detailActions ?? []).filter(
+    (action) =>
+      can(action.permission) &&
+      (!allowedOperationIds.length || allowedOperationIds.includes(action.operationId)),
+  )
+})
 const openRowMenuActions = computed(() =>
   rowMenuRow.value
     ? rowActions.value.filter((action) => actionVisible(action, rowMenuRow.value!))
@@ -259,7 +284,10 @@ function openCreate() {
   formMode.value = 'create'
   formOperation.value = createOperation.value
   activeAction.value = null
-  formModel.value = initialValue(createOperation.value.body) as Record<string, unknown>
+  formModel.value = {
+    ...(initialValue(createOperation.value.body) as Record<string, unknown>),
+    ...createDefaults.value,
+  }
   showForm.value = true
 }
 async function openEdit(row: Record<string, unknown>) {
@@ -813,21 +841,21 @@ onBeforeUnmount(() => {
   document.removeEventListener('scroll', closeRowMenu, true)
   window.removeEventListener('resize', closeRowMenu)
 })
-watch(
-  () => props.moduleKey,
-  () => {
-    clearNotices()
-    closeRowMenu()
-    showDetail.value = false
-    showForm.value = false
-    showQrLabels.value = false
-    pendingDeleteRow.value = null
-    pendingConfirmAction.value = null
-    page.value = 1
-    search.value = ''
-    void load()
-  },
-)
+function resetWorkbench(): void {
+  clearNotices()
+  closeRowMenu()
+  showDetail.value = false
+  showForm.value = false
+  showQrLabels.value = false
+  pendingDeleteRow.value = null
+  pendingConfirmAction.value = null
+  page.value = 1
+  search.value = ''
+  void load()
+}
+
+watch(() => props.moduleKey, resetWorkbench)
+watch(() => route.fullPath, resetWorkbench)
 let searchTimer: number | undefined
 watch(search, () => {
   window.clearTimeout(searchTimer)
@@ -854,7 +882,7 @@ watch(
 
 <template>
   <div v-if="definition" class="page-stack page-stack--resource">
-    <PageHeader :title="definition.title" :description="definition.description">
+    <PageHeader :title="displayTitle" :description="displayDescription">
       <template #actions>
         <div class="page-action-row">
           <AppButton
@@ -874,7 +902,7 @@ watch(
           <AppButton
             v-if="createOperation && can(definition.createPermission) && !definition.readOnly"
             @click="openCreate"
-            ><Plus :size="17" /> Tambah</AppButton
+            ><Plus :size="17" /> {{ createButtonLabel }}</AppButton
           >
         </div>
       </template>
@@ -907,7 +935,7 @@ watch(
         :row-key="(row, index) => String(rowId(row) ?? index)"
         server-side
         show-actions
-        :empty-title="`Belum ada ${definition.title}`"
+        :empty-title="`Belum ada ${displayTitle}`"
         empty-description="Data akan muncul setelah tersedia pada backend."
         @update:per-page="changePageSize(String($event))"
         @page-change="changePage"
@@ -994,9 +1022,9 @@ watch(
       :open="showForm"
       :title="
         formMode === 'create'
-          ? `Tambah ${definition.title}`
+          ? `${createButtonLabel}`
           : formMode === 'edit'
-            ? `Edit ${definition.title}`
+            ? `Edit ${displayTitle}`
             : (activeAction?.label ?? 'Proses')
       "
       :description="formOperation?.summary"
@@ -1034,7 +1062,7 @@ watch(
 
     <AppModal
       :open="showDetail"
-      :title="`Detail ${definition.title}`"
+      :title="`Detail ${displayTitle}`"
       size="xl"
       :busy="detailLoading"
       :layer="1"
@@ -1044,9 +1072,9 @@ watch(
         <span v-for="item in 5" :key="item" class="skeleton skeleton--row"></span>
       </div>
       <template v-else>
-        <div v-if="selected && definition.detailActions?.length" class="detail-actions">
+        <div v-if="selected && visibleDetailActions.length" class="detail-actions">
           <AppButton
-            v-for="action in definition.detailActions.filter((item) => can(item.permission))"
+            v-for="action in visibleDetailActions"
             :key="action.operationId"
             :variant="action.tone ?? 'ghost'"
             @click="beginAction(action, selected)"
@@ -1087,7 +1115,7 @@ watch(
     <AppConfirmDialog
       :open="Boolean(pendingDeleteRow)"
       title="Konfirmasi soft delete"
-      :message="`Hapus ${definition.title} ini?`"
+      :message="`Hapus ${displayTitle} ini?`"
       detail="Data tidak dihapus permanen. Data mengikuti aturan soft delete backend dan dapat dipulihkan melalui Recycle Bin apabila restore tersedia."
       confirm-label="Ya, hapus"
       tone="danger"

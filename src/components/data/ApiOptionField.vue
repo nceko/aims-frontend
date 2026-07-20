@@ -54,14 +54,74 @@ function firstValue(row: Record<string, unknown>, keys: string[]): unknown {
     if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key]
 }
 
+function normalizeLabelPart(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function compactCompositeLabel(value: string): string {
+  const segments = value
+    .split(/\s-\s|\s•\s|\s\|\s/)
+    .map((segment) => normalizeLabelPart(segment))
+    .filter(Boolean)
+  const cleaned: string[] = []
+  for (const segment of segments) {
+    const normalizedSegment = segment.toLocaleLowerCase('id-ID')
+    const duplicated = cleaned.some((existing) => {
+      const normalizedExisting = existing.toLocaleLowerCase('id-ID')
+      return (
+        normalizedExisting === normalizedSegment ||
+        normalizedExisting.includes(normalizedSegment) ||
+        normalizedSegment.includes(normalizedExisting)
+      )
+    })
+    if (!duplicated) cleaned.push(segment)
+  }
+  return cleaned.join(' - ') || normalizeLabelPart(value)
+}
+
 function optionLabel(row: Record<string, unknown>, keys: string[]): string {
+  const explicitLabel = normalizeLabelPart(row.label)
+  if (explicitLabel) return compactCompositeLabel(explicitLabel)
+
   const pieces: string[] = []
   for (const key of keys) {
-    const value = row[key]
-    if (value !== undefined && value !== null && value !== '' && !pieces.includes(String(value)))
-      pieces.push(String(value))
+    const value = normalizeLabelPart(row[key])
+    if (!value) continue
+    const duplicate = pieces.some((piece) => {
+      const current = piece.toLocaleLowerCase('id-ID')
+      const next = value.toLocaleLowerCase('id-ID')
+      return current === next || current.includes(next) || next.includes(current)
+    })
+    if (!duplicate) pieces.push(value)
   }
-  return pieces.slice(0, 2).join(' - ') || String(firstValue(row, ['id', 'value']) ?? 'Option')
+  return (
+    compactCompositeLabel(pieces.slice(0, 2).join(' - ')) ||
+    String(firstValue(row, ['id', 'value']) ?? 'Option')
+  )
+}
+
+function optionDescription(row: Record<string, unknown>): string | undefined {
+  const label = normalizeLabelPart(row.label)
+  const name = normalizeLabelPart(
+    firstValue(row, ['name', 'category_name', 'item_name', 'supplier_name']),
+  )
+  const code = normalizeLabelPart(
+    firstValue(row, ['code', 'category_code', 'item_code', 'supplier_code']),
+  )
+  const description = normalizeLabelPart(firstValue(row, ['description', 'notes']))
+
+  if (label) {
+    if (code && !label.toLocaleLowerCase('id-ID').includes(code.toLocaleLowerCase('id-ID')))
+      return code
+    if (name && !label.toLocaleLowerCase('id-ID').includes(name.toLocaleLowerCase('id-ID')))
+      return name
+    return description || undefined
+  }
+
+  if (code && name && code !== name) return code
+  return description || undefined
 }
 
 function resolvePath(path: string): string | null {
@@ -93,11 +153,12 @@ function selectedFallbackOptions(): SelectOption[] {
     props.rootModel[`${base}_no`],
   ]
     .filter((value) => value !== undefined && value !== null && value !== '')
-    .map(String)
+    .map((value) => normalizeLabelPart(value))
+    .filter(Boolean)
     .filter((value, index, all) => all.indexOf(value) === index)
 
   if (!labelPieces.length) return []
-  const label = labelPieces.slice(0, 2).join(' - ')
+  const label = compactCompositeLabel(labelPieces.slice(0, 2).join(' - '))
   return values.map((value) => ({ value, label }))
 }
 
@@ -122,6 +183,7 @@ function normalizeOptions(payload: unknown): SelectOption[] {
     .map((row) => ({
       value: (firstValue(row, valueKeys) ?? '') as string | number | boolean,
       label: optionLabel(row, labelKeys),
+      description: optionDescription(row),
     }))
     .filter((item) => item.value !== '')
 }

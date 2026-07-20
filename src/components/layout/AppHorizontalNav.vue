@@ -17,14 +17,16 @@ function allowed(item: NavItem): boolean {
   return auth.can(item.permission)
 }
 
-const visibleItems = computed(() =>
-  navigation
+function filterItems(items: NavItem[]): NavItem[] {
+  return items
     .map((item) => ({
       ...item,
-      children: item.children?.filter(allowed),
+      children: item.children ? filterItems(item.children) : undefined,
     }))
-    .filter((item) => allowed(item) && (!item.children || item.children.length > 0)),
-)
+    .filter((item) => allowed(item) && (!item.children || item.children.length > 0))
+}
+
+const visibleItems = computed(() => filterItems(navigation))
 
 function toggleGroup(label: string): void {
   openGroup.value = openGroup.value === label ? null : label
@@ -37,7 +39,7 @@ function linkActive(to?: string): boolean {
 }
 
 function groupActive(item: NavItem): boolean {
-  return Boolean(item.children?.some((child) => linkActive(child.to)))
+  return Boolean(item.children?.some((child) => linkActive(child.to) || groupActive(child)))
 }
 
 function close(): void {
@@ -91,15 +93,31 @@ onBeforeUnmount(() => {
             <ChevronDown :size="14" />
           </button>
           <div v-if="openGroup === item.label" class="horizontal-nav__dropdown">
-            <RouterLink
-              v-for="child in item.children"
-              :key="child.label"
-              :to="child.to || '/'"
-              :class="{ 'is-active': linkActive(child.to) }"
-              @click="close"
-            >
-              <span>{{ child.label }}</span>
-            </RouterLink>
+            <template v-for="child in item.children" :key="child.label">
+              <RouterLink
+                v-if="child.to"
+                :to="child.to || '/'"
+                :class="{ 'is-active': linkActive(child.to) }"
+                @click="close"
+              >
+                <span>{{ child.label }}</span>
+              </RouterLink>
+              <div v-else class="horizontal-nav__subgroup">
+                <div class="horizontal-nav__subgroup-label">{{ child.label }}</div>
+                <div class="horizontal-nav__subgroup-links">
+                  <RouterLink
+                    v-for="grandchild in child.children"
+                    :key="grandchild.label"
+                    :to="grandchild.to || '/'"
+                    class="horizontal-nav__sublink"
+                    :class="{ 'is-active': linkActive(grandchild.to) }"
+                    @click="close"
+                  >
+                    <span>{{ grandchild.label }}</span>
+                  </RouterLink>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </template>

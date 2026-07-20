@@ -68,17 +68,21 @@ function allowed(item: NavItem): boolean {
   }
   return auth.can(item.permission)
 }
-const searchableItems = computed(() =>
-  navigation.flatMap((group) => {
-    if (group.children) {
-      return group.children
-        .filter(allowed)
-        .filter((item) => item.to)
-        .map((item) => ({ ...item, group: group.label }))
-    }
-    return allowed(group) && group.to ? [{ ...group, group: 'Menu' }] : []
-  }),
-)
+function flattenNavigation(
+  items: NavItem[],
+  trail: string[] = [],
+): Array<NavItem & { group: string }> {
+  return items.flatMap((item) => {
+    if (!allowed(item)) return []
+    const nextTrail = item.to ? trail : [...trail, item.label]
+    const currentGroup = nextTrail.join(' / ') || 'Menu'
+    const current = item.to ? [{ ...item, group: currentGroup }] : []
+    const children = item.children ? flattenNavigation(item.children, nextTrail) : []
+    return [...current, ...children]
+  })
+}
+
+const searchableItems = computed(() => flattenNavigation(navigation))
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return searchableItems.value.slice(0, 8)

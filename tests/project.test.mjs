@@ -45,6 +45,14 @@ const resourceIdUtils = await readFile(
   new URL('../src/utils/resource-id.ts', import.meta.url),
   'utf8',
 )
+const appSidebar = await readFile(
+  new URL('../src/components/layout/AppSidebar.vue', import.meta.url),
+  'utf8',
+)
+const appHorizontalNav = await readFile(
+  new URL('../src/components/layout/AppHorizontalNav.vue', import.meta.url),
+  'utf8',
+)
 
 function quotedValues(source, pattern) {
   return [...source.matchAll(pattern)].map((match) => match[1]).filter(Boolean)
@@ -240,11 +248,6 @@ test('users can change their own password and are logged out afterwards', () => 
   assert.match(authStore, /changeOwnPassword/)
   assert.match(appTopbar, /Ganti Password/)
 })
-
-const appSidebar = await readFile(
-  new URL('../src/components/layout/AppSidebar.vue', import.meta.url),
-  'utf8',
-)
 
 test('AIMS logo remains available for sidebar and horizontal menu layouts', () => {
   assert.match(appSidebar, /<AppLogo inverse \/>/)
@@ -547,4 +550,77 @@ test('remote Select2 preserves selected values and shows server-search feedback'
   assert.match(apiOptionField, /mergeWithSelected/)
   assert.match(apiOptionField, /selectedFallbackOptions/)
   assert.match(apiClientSource, /options: \{ signal\?: AbortSignal \} = \{\}/)
+})
+
+test('catalog item menu groups master item part number and supplier item', () => {
+  assert.match(navigation, /label: 'Item'[\s\S]*label: 'Master Item'/)
+  assert.match(navigation, /label: 'Part Number'/)
+  assert.match(navigation, /label: 'Supplier Item'/)
+  assert.match(appSidebar, /nav-subgroup__children/)
+  assert.match(appHorizontalNav, /horizontal-nav__subgroup/)
+})
+
+test('multiple dropdowns use compact summaries and checkbox choices', () => {
+  assert.match(appSelect, /multipleSummaryLabel/)
+  assert.match(appSelect, /data dipilih/)
+  assert.match(appSelect, /select2-results__checkbox/)
+  assert.match(appSelect, /select2-results__option--multiple/)
+  assert.match(apiOptionField, /compactCompositeLabel/)
+  assert.match(apiOptionField, /optionDescription/)
+})
+
+test('category group detail only exposes replace selection workflow', () => {
+  const categoryGroupBlock = modules.slice(
+    modules.indexOf("'category-groups': crud"),
+    modules.indexOf('categories: crud'),
+  )
+  assert.match(categoryGroupBlock, /ReplaceCategoryGroupCategories/)
+  assert.doesNotMatch(categoryGroupBlock, /AddCategoryGroupCategories/)
+  assert.doesNotMatch(categoryGroupBlock, /Tambah Kategori/)
+})
+
+test('inventory navigation follows stock request distribution and control workflows', () => {
+  assert.match(navigation, /label: 'Persediaan'/)
+  assert.match(navigation, /label: 'Permintaan & Pengeluaran'/)
+  assert.match(navigation, /label: 'Pengambilan Langsung'/)
+  assert.match(navigation, /label: 'Distribusi'/)
+  assert.match(navigation, /label: 'Kontrol Stok'/)
+  assert.match(navigation, /label: 'Rekonsiliasi Stok'/)
+  assert.match(navigation, /label: 'Pemeliharaan Sistem'/)
+})
+
+test('asset navigation separates warehouse direct migration and assignment lifecycles', () => {
+  assert.match(navigation, /label: 'Ringkasan Aset'/)
+  assert.match(navigation, /label: 'Aset dari Gudang'/)
+  assert.match(navigation, /label: 'Aset Langsung'/)
+  assert.match(navigation, /label: 'Migrasi \/ Aset Existing'/)
+  assert.match(navigation, /label: 'Assignment Aktif'/)
+  assert.match(navigation, /label: 'Pengembalian Aset'/)
+  assert.match(navigation, /label: 'Transfer Penanggung Jawab'/)
+})
+
+test('frontend scaffolds backend-pending direct asset and migration workflows', async () => {
+  const router = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
+  const plannedWorkflow = await readFile(
+    new URL('../src/modules/workflow/PlannedWorkflowView.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(router, /assets\/direct-acquisitions/)
+  assert.match(router, /assets\/migrations/)
+  assert.match(router, /inventory\/direct-issues/)
+  assert.match(plannedWorkflow, /Kebutuhan Backend/)
+  assert.match(plannedWorkflow, /Struktur frontend sudah disiapkan/)
+})
+
+test('reports are grouped by business area with backend-ready empty states', async () => {
+  const reportsView = await readFile(
+    new URL('../src/modules/reports/ReportsView.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(reportsView, /label: 'Inventory'/)
+  assert.match(reportsView, /label: 'Pengadaan'/)
+  assert.match(reportsView, /label: 'Pemakaian & Distribusi'/)
+  assert.match(reportsView, /label: 'Aset'/)
+  assert.match(reportsView, /label: 'Audit'/)
+  assert.match(reportsView, /Endpoint laporan untuk kelompok ini akan\s+ditambahkan/)
 })

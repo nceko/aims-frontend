@@ -37,7 +37,7 @@ const cards = computed<Array<{ label: string; value: number; icon: unknown; tone
   { label: 'Total Item', value: number(summary.value.total_items), icon: Boxes, tone: 'primary' },
   { label: 'Total Asset', value: number(assets.value.total_assets), icon: Wrench, tone: 'success' },
   {
-    label: 'Stock On Hand',
+    label: 'Stok Tersedia',
     value: number(summary.value.total_stock_qty),
     icon: PackageCheck,
     tone: 'info',

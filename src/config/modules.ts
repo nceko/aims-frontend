@@ -173,11 +173,6 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     idCandidates: ['category_group_id', 'id'],
     detailActions: [
       {
-        operationId: 'AddCategoryGroupCategories',
-        label: 'Tambah Kategori',
-        permission: 'catalog.category_groups.update',
-      },
-      {
         operationId: 'ReplaceCategoryGroupCategories',
         label: 'Atur Ulang Kategori',
         permission: 'catalog.category_groups.update',
@@ -661,7 +656,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
 
   stocks: crud({
     key: 'stocks',
-    title: 'Stock Balance',
+    title: 'Saldo Stok',
     description: 'Posisi stok berdasarkan gudang, item, part, lot, dan UOM.',
     group: 'Inventory',
     route: '/inventory/stocks',
@@ -681,7 +676,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'item-units': crud({
     key: 'item-units',
-    title: 'Item Unit / QR',
+    title: 'Unit Barang & QR',
     description: 'Telusuri unit serial dan histori QR.',
     group: 'Inventory',
     route: '/inventory/item-units',
@@ -708,7 +703,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'stock-thresholds': crud({
     key: 'stock-thresholds',
-    title: 'Minimum Stock',
+    title: 'Pengaturan Minimum Stok',
     description: 'Atur batas minimum stok per gudang dan item.',
     group: 'Inventory',
     route: '/inventory/stock-thresholds',
@@ -726,7 +721,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'low-stock': crud({
     key: 'low-stock',
-    title: 'Low Stock',
+    title: 'Item Low Stock',
     description: 'Item yang berada di bawah minimum stock.',
     group: 'Inventory',
     route: '/inventory/low-stock',
@@ -804,7 +799,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'delivery-orders': crud({
     key: 'delivery-orders',
-    title: 'Delivery Order / Surat Jalan',
+    title: 'Surat Jalan / Transfer Antar Gudang',
     description: 'Persiapan, scan keluar, pengiriman, dan penerimaan barang.',
     group: 'Inventory',
     route: '/inventory/delivery-orders',
@@ -874,8 +869,8 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'item-usages': crud({
     key: 'item-usages',
-    title: 'Pemakaian Barang',
-    description: 'Catat penggunaan barang berdasarkan penanggung jawab.',
+    title: 'Pengeluaran Berdasarkan Permintaan',
+    description: 'Catat pengeluaran barang kepada pegawai, divisi, lokasi, atau kendaraan.',
     group: 'Inventory',
     route: '/inventory/item-usages',
     listOperationId: 'FindAllItemUsages',
@@ -1027,7 +1022,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'cost-balances': crud({
     key: 'cost-balances',
-    title: 'Cost Balance',
+    title: 'Nilai Persediaan',
     description: 'Saldo nilai persediaan dan average cost.',
     group: 'Inventory',
     route: '/inventory/cost-balances',
@@ -1048,7 +1043,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'cost-movements': crud({
     key: 'cost-movements',
-    title: 'Cost Movement',
+    title: 'Pergerakan Nilai',
     description: 'Riwayat pergerakan nilai persediaan.',
     group: 'Inventory',
     route: '/inventory/cost-movements',
@@ -1070,7 +1065,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
 
   assets: crud({
     key: 'assets',
-    title: 'Asset Register',
+    title: 'Semua Aset',
     description: 'Daftar, profil, assignment, maintenance, dan siklus hidup aset.',
     group: 'Asset',
     route: '/assets/register',
@@ -1153,7 +1148,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'asset-maintenances': crud({
     key: 'asset-maintenances',
-    title: 'Maintenance Asset',
+    title: 'Maintenance Aset',
     description: 'Pekerjaan maintenance aset.',
     group: 'Asset',
     route: '/assets/maintenances',
@@ -1197,8 +1192,8 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'asset-losses': crud({
     key: 'asset-losses',
-    title: 'Asset Hilang',
-    description: 'Investigasi dan penyelesaian aset hilang.',
+    title: 'Kerusakan & Kehilangan Aset',
+    description: 'Catat kerusakan, kehilangan, investigasi, pemulihan, dan penyelesaiannya.',
     group: 'Asset',
     route: '/assets/loss-cases',
     listOperationId: 'ListLossCases',
@@ -1243,7 +1238,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'asset-disposals': crud({
     key: 'asset-disposals',
-    title: 'Disposal Asset',
+    title: 'Disposal / Penghapusan Aset',
     description: 'Approval dan penyelesaian disposal/write-off aset.',
     group: 'Asset',
     route: '/assets/disposals',
@@ -1283,7 +1278,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'asset-depreciation': crud({
     key: 'asset-depreciation',
-    title: 'Penyusutan Asset',
+    title: 'Penyusutan Aset',
     description: 'Laporan dan snapshot penyusutan aset.',
     group: 'Asset',
     route: '/assets/depreciation',
@@ -1309,7 +1304,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'asset-handovers': crud({
     key: 'asset-handovers',
-    title: 'Berita Acara Asset',
+    title: 'Berita Acara Aset',
     description: 'Dokumen serah terima dan tanda tangan aset.',
     group: 'Asset',
     route: '/assets/handovers',
@@ -1514,7 +1509,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
 
   'stock-reconciliation': crud({
     key: 'stock-reconciliation',
-    title: 'Stock Reconciliation',
+    title: 'Rekonsiliasi Stok',
     description: 'Periksa integritas saldo dan pergerakan stok.',
     group: 'Maintenance',
     route: '/maintenance/stock-reconciliation',
@@ -1526,7 +1521,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'cost-reconciliation': crud({
     key: 'cost-reconciliation',
-    title: 'Cost Reconciliation',
+    title: 'Rekonsiliasi Cost',
     description: 'Periksa selisih saldo stok dan inventory costing.',
     group: 'Maintenance',
     route: '/maintenance/cost-reconciliation',

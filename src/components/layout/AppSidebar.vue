@@ -19,14 +19,16 @@ function allowed(item: NavItem): boolean {
   return auth.can(item.permission)
 }
 
-const visibleItems = computed(() =>
-  navigation
+function filterItems(items: NavItem[]): NavItem[] {
+  return items
     .map((item) => ({
       ...item,
-      children: item.children?.filter(allowed),
+      children: item.children ? filterItems(item.children) : undefined,
     }))
-    .filter((item) => allowed(item) && (!item.children || item.children.length > 0)),
-)
+    .filter((item) => allowed(item) && (!item.children || item.children.length > 0))
+}
+
+const visibleItems = computed(() => filterItems(navigation))
 
 function isRouteActive(to?: string): boolean {
   if (!to) return false
@@ -35,14 +37,23 @@ function isRouteActive(to?: string): boolean {
 }
 
 function groupActive(item: NavItem): boolean {
-  return Boolean(item.children?.some((child) => isRouteActive(child.to)))
+  return Boolean(item.children?.some((child) => isRouteActive(child.to) || groupActive(child)))
+}
+
+function childGroupKey(parentLabel: string, childLabel: string): string {
+  return `${parentLabel}::${childLabel}`
 }
 
 function ensureActiveGroupOpen(): void {
-  const activeGroup = visibleItems.value.find((item) => item.children && groupActive(item))
-  if (!activeGroup) return
   const next = new Set(openGroups.value)
-  next.add(activeGroup.label)
+  for (const item of visibleItems.value) {
+    if (!item.children) continue
+    if (groupActive(item)) next.add(item.label)
+    for (const child of item.children) {
+      if (!child.children) continue
+      if (groupActive(child)) next.add(childGroupKey(item.label, child.label))
+    }
+  }
   openGroups.value = next
 }
 
@@ -51,6 +62,15 @@ function toggle(item: NavItem) {
   const next = new Set(openGroups.value)
   if (next.has(item.label)) next.delete(item.label)
   else next.add(item.label)
+  openGroups.value = next
+}
+
+function toggleChild(parent: NavItem, child: NavItem) {
+  if (!child.children) return
+  const key = childGroupKey(parent.label, child.label)
+  const next = new Set(openGroups.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
   openGroups.value = next
 }
 
@@ -107,17 +127,52 @@ watch(
             <ChevronDown class="nav-link__chevron" :size="16" />
           </button>
           <div v-show="openGroups.has(item.label)" class="nav-group__children">
-            <RouterLink
-              v-for="child in item.children"
-              :key="child.label"
-              class="nav-child"
-              :class="{ 'is-active': isRouteActive(child.to) }"
-              :to="child.to || '/'"
-              @click="ui.closeMobileSidebar"
-            >
-              <span class="nav-child__dot"></span>
-              {{ child.label }}
-            </RouterLink>
+            <template v-for="child in item.children" :key="child.label">
+              <RouterLink
+                v-if="child.to"
+                class="nav-child"
+                :class="{ 'is-active': isRouteActive(child.to) }"
+                :to="child.to || '/'"
+                @click="ui.closeMobileSidebar"
+              >
+                <span class="nav-child__dot"></span>
+                {{ child.label }}
+              </RouterLink>
+              <div
+                v-else
+                class="nav-subgroup"
+                :class="{
+                  'nav-subgroup--open': openGroups.has(childGroupKey(item.label, child.label)),
+                  'nav-subgroup--active': groupActive(child),
+                }"
+              >
+                <button
+                  class="nav-child nav-child--button"
+                  type="button"
+                  @click="toggleChild(item, child)"
+                >
+                  <span class="nav-child__dot"></span>
+                  <span>{{ child.label }}</span>
+                  <ChevronDown class="nav-child__chevron" :size="14" />
+                </button>
+                <div
+                  v-show="openGroups.has(childGroupKey(item.label, child.label))"
+                  class="nav-subgroup__children"
+                >
+                  <RouterLink
+                    v-for="grandchild in child.children"
+                    :key="grandchild.label"
+                    class="nav-grandchild"
+                    :class="{ 'is-active': isRouteActive(grandchild.to) }"
+                    :to="grandchild.to || '/'"
+                    @click="ui.closeMobileSidebar"
+                  >
+                    <span class="nav-grandchild__dot"></span>
+                    {{ grandchild.label }}
+                  </RouterLink>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </template>

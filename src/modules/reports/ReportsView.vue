@@ -11,18 +11,46 @@ import { apiClient } from '@/services/api-client'
 import { errorMessage, normalizeList } from '@/utils/api'
 import { humanizeField } from '@/config/field-options'
 
+type ReportGroupKey = 'inventory' | 'procurement' | 'usage' | 'assets' | 'audit'
+
 interface ReportDefinition {
   key: string
   title: string
   description: string
   path: string
   permission: string
+  group: ReportGroupKey
   exportable?: boolean
   columns?: string[]
 }
+
+const reportGroups: Array<{ key: ReportGroupKey; label: string; description: string }> = [
+  {
+    key: 'inventory',
+    label: 'Inventory',
+    description: 'Saldo, movement, minimum stock, dan valuasi.',
+  },
+  {
+    key: 'procurement',
+    label: 'Pengadaan',
+    description: 'PO, penerimaan, vendor, dan landed cost.',
+  },
+  {
+    key: 'usage',
+    label: 'Pemakaian & Distribusi',
+    description: 'Pengeluaran, transfer, dan barang in-transit.',
+  },
+  {
+    key: 'assets',
+    label: 'Aset',
+    description: 'Register, penanggung jawab, maintenance, dan nilai aset.',
+  },
+  { key: 'audit', label: 'Audit', description: 'Posting, reversal, dan aktivitas transaksi.' },
+]
 const reports: ReportDefinition[] = [
   {
     key: 'stock-balances',
+    group: 'inventory',
     title: 'Stock Balance',
     description: 'Posisi stok per gudang, item, part, lot, dan UOM.',
     path: '/api/v1/reports/stock-balances',
@@ -31,6 +59,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'stock-movements',
+    group: 'inventory',
     title: 'Stock Movement',
     description: 'Riwayat seluruh pergerakan stok.',
     path: '/api/v1/reports/stock-movements',
@@ -39,6 +68,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'low-stock',
+    group: 'inventory',
     title: 'Low Stock',
     description: 'Item di bawah minimum stock.',
     path: '/api/v1/reports/low-stock',
@@ -47,6 +77,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'in-transit',
+    group: 'usage',
     title: 'In Transit',
     description: 'Barang yang masih dalam perjalanan.',
     path: '/api/v1/reports/in-transit',
@@ -55,6 +86,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'delivery-orders',
+    group: 'usage',
     title: 'Delivery Order',
     description: 'Pengiriman dan penerimaan antar gudang.',
     path: '/api/v1/reports/delivery-orders',
@@ -63,6 +95,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'item-usages',
+    group: 'usage',
     title: 'Item Usage',
     description: 'Pemakaian barang.',
     path: '/api/v1/reports/item-usages',
@@ -71,6 +104,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'usage-responsibility',
+    group: 'usage',
     title: 'Usage by Responsibility',
     description: 'Pemakaian berdasarkan employee/division/location/vehicle.',
     path: '/api/v1/reports/item-usages-by-responsibility',
@@ -79,6 +113,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'inventory-valuation',
+    group: 'inventory',
     title: 'Inventory Valuation',
     description: 'Qty, average cost, dan nilai inventory.',
     path: '/api/v1/reports/inventory-valuation',
@@ -87,6 +122,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'assets-responsibility',
+    group: 'assets',
     title: 'Assets by Responsibility',
     description: 'Asset berdasarkan penanggung jawab.',
     path: '/api/v1/reports/assets-by-responsibility',
@@ -95,6 +131,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'asset-maintenances',
+    group: 'assets',
     title: 'Asset Maintenance',
     description: 'Histori maintenance asset.',
     path: '/api/v1/reports/asset-maintenances',
@@ -103,6 +140,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'asset-valuation',
+    group: 'assets',
     title: 'Asset Valuation',
     description: 'Acquisition cost, depreciation, dan net book value.',
     path: '/api/v1/reports/asset-valuation',
@@ -111,6 +149,7 @@ const reports: ReportDefinition[] = [
   },
   {
     key: 'asset-depreciation',
+    group: 'assets',
     title: 'Asset Depreciation',
     description: 'Perhitungan penyusutan per asset.',
     path: '/api/v1/reports/asset-depreciation',
@@ -119,7 +158,18 @@ const reports: ReportDefinition[] = [
 ]
 const auth = useAuthStore()
 const visibleReports = computed(() => reports.filter((item) => auth.can(item.permission)))
-const active = ref<ReportDefinition | null>(visibleReports.value[0] ?? null)
+const activeGroup = ref<ReportGroupKey>('inventory')
+const groupedReports = computed(() =>
+  visibleReports.value.filter((item) => item.group === activeGroup.value),
+)
+const active = ref<ReportDefinition | null>(
+  visibleReports.value.find((item) => item.group === activeGroup.value) ??
+    visibleReports.value[0] ??
+    null,
+)
+const activeGroupInfo = computed(
+  () => reportGroups.find((group) => group.key === activeGroup.value) ?? reportGroups[0],
+)
 const rows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
 const exporting = ref(false)
@@ -199,6 +249,14 @@ async function exportReport(format: 'csv' | 'xlsx') {
     exporting.value = false
   }
 }
+function chooseGroup(group: ReportGroupKey) {
+  activeGroup.value = group
+  active.value = visibleReports.value.find((item) => item.group === group) ?? null
+  rows.value = []
+  error.value = ''
+  page.value = 1
+}
+
 function choose(report: ReportDefinition) {
   active.value = report
   rows.value = []
@@ -212,13 +270,26 @@ function choose(report: ReportDefinition) {
   <div class="page-stack">
     <PageHeader
       title="Reports"
-      description="Laporan operasional, inventory valuation, dan asset accounting sesuai permission Anda."
+      description="Laporan dikelompokkan berdasarkan inventory, pengadaan, pemakaian dan distribusi, aset, serta audit."
     />
+    <div class="report-group-tabs" role="tablist" aria-label="Kelompok laporan">
+      <button
+        v-for="group in reportGroups"
+        :key="group.key"
+        type="button"
+        :class="{ active: activeGroup === group.key }"
+        @click="chooseGroup(group.key)"
+      >
+        <strong>{{ group.label }}</strong>
+        <small>{{ group.description }}</small>
+      </button>
+    </div>
+
     <div v-if="error" class="notice notice--danger">{{ error }}</div>
     <div class="reports-layout">
-      <aside class="report-selector">
+      <aside v-if="groupedReports.length" class="report-selector">
         <button
-          v-for="report in visibleReports"
+          v-for="report in groupedReports"
           :key="report.key"
           type="button"
           :class="{ active: active?.key === report.key }"
@@ -230,7 +301,17 @@ function choose(report: ReportDefinition) {
           >
         </button>
       </aside>
-      <AppCard v-if="active" flush>
+      <AppCard
+        v-if="!groupedReports.length"
+        title="Laporan belum tersedia"
+        :subtitle="activeGroupInfo?.description"
+      >
+        <div class="report-group-empty">
+          Struktur menu laporan sudah disiapkan. Endpoint laporan untuk kelompok ini akan
+          ditambahkan pada tahap backend.
+        </div>
+      </AppCard>
+      <AppCard v-else-if="active" flush>
         <div class="report-heading-toolbar">
           <div>
             <strong>{{ active.title }}</strong>

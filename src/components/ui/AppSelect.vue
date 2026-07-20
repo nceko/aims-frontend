@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSPro
 export interface SelectOption {
   value: string | number | boolean
   label: string
+  description?: string
   disabled?: boolean
 }
 
@@ -78,6 +79,11 @@ const selectedOptions = computed(() => {
 })
 
 const selectedLabel = computed(() => selectedOptions.value[0]?.label ?? '')
+const multipleSummaryLabel = computed(() => {
+  if (!selectedOptions.value.length) return ''
+  if (selectedOptions.value.length === 1) return selectedOptions.value[0]?.label ?? ''
+  return `${selectedOptions.value.length} data dipilih`
+})
 
 const normalizedSearch = computed(() => search.value.trim())
 const remoteSearchNeedsMoreCharacters = computed(
@@ -373,21 +379,7 @@ onBeforeUnmount(() => {
 
           <template v-else-if="multiple">
             <span v-if="selectedOptions.length" class="select2-selection__rendered">
-              <span
-                v-for="option in selectedOptions"
-                :key="String(option.value)"
-                class="select2-selection__choice"
-              >
-                <span>{{ option.label }}</span>
-                <span
-                  class="select2-selection__choice__remove"
-                  role="button"
-                  tabindex="-1"
-                  :aria-label="`Hapus ${option.label}`"
-                  @click.stop="removeValue(String(option.value))"
-                  >×</span
-                >
-              </span>
+              <span class="select2-selection__summary">{{ multipleSummaryLabel }}</span>
             </span>
             <span v-else class="select2-selection__placeholder">{{ placeholder }}</span>
           </template>
@@ -442,6 +434,7 @@ onBeforeUnmount(() => {
               'select2-results__option--selected': isSelected(option),
               'select2-results__option--highlighted': highlightedIndex === index,
               'select2-results__option--disabled': option.disabled,
+              'select2-results__option--multiple': multiple,
             }"
             :data-option-index="index"
             :aria-selected="isSelected(option)"
@@ -450,8 +443,22 @@ onBeforeUnmount(() => {
             @mouseenter="highlightedIndex = index"
             @click="choose(option)"
           >
-            <span>{{ option.label }}</span>
-            <span v-if="isSelected(option)" class="select2-results__check">✓</span>
+            <span class="select2-results__content">
+              <span
+                v-if="multiple"
+                class="select2-results__checkbox"
+                :class="{ 'is-checked': isSelected(option) }"
+              >
+                <span></span>
+              </span>
+              <span class="select2-results__text-group">
+                <span class="select2-results__label">{{ option.label }}</span>
+                <small v-if="option.description" class="select2-results__description">{{
+                  option.description
+                }}</small>
+              </span>
+            </span>
+            <span v-if="!multiple && isSelected(option)" class="select2-results__check">✓</span>
           </li>
           <li
             v-if="loading && remoteSearch"
