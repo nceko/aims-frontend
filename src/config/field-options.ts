@@ -32,7 +32,12 @@ export const fieldOptionSources: Record<string, FieldOptionSource> = {
   parent_category_id: option('/api/v1/categories/options'),
   brand_id: option('/api/v1/brands/options'),
   supplier_id: option('/api/v1/suppliers/options'),
-  item_id: option('/api/v1/items/options'),
+  item_id: option('/api/v1/items/options', {
+    remoteSearch: true,
+    searchParam: 'search',
+    minimumInputLength: 2,
+    debounceMs: 350,
+  }),
   part_id: option('/api/v1/items/{item_id}/part-numbers', {
     pathFromModel: { item_id: 'item_id' },
     valueKeys: ['part_id', 'item_part_number_id', 'id', 'value'],

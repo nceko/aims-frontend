@@ -22,6 +22,8 @@ const props = withDefaults(
     clearable?: boolean
     compact?: boolean
     noResultsText?: string
+    remoteSearch?: boolean
+    minimumInputLength?: number
   }>(),
   {
     modelValue: '',
@@ -35,6 +37,8 @@ const props = withDefaults(
     clearable: false,
     compact: false,
     noResultsText: 'Data tidak ditemukan',
+    remoteSearch: false,
+    minimumInputLength: 0,
   },
 )
 
@@ -43,6 +47,7 @@ const emit = defineEmits<{
   change: [value: string | string[]]
   open: []
   close: []
+  search: [term: string]
 }>()
 
 let selectCounter = 0
@@ -74,10 +79,29 @@ const selectedOptions = computed(() => {
 
 const selectedLabel = computed(() => selectedOptions.value[0]?.label ?? '')
 
+const normalizedSearch = computed(() => search.value.trim())
+const remoteSearchNeedsMoreCharacters = computed(
+  () =>
+    props.remoteSearch &&
+    normalizedSearch.value.length > 0 &&
+    normalizedSearch.value.length < props.minimumInputLength,
+)
+
 const filteredOptions = computed(() => {
-  const term = search.value.trim().toLocaleLowerCase('id-ID')
+  if (remoteSearchNeedsMoreCharacters.value) return []
+  if (props.remoteSearch && props.loading) return []
+  if (props.remoteSearch) return props.options
+  const term = normalizedSearch.value.toLocaleLowerCase('id-ID')
   if (!term) return props.options
   return props.options.filter((option) => option.label.toLocaleLowerCase('id-ID').includes(term))
+})
+
+const effectiveDisabled = computed(() => props.disabled || (props.loading && !props.remoteSearch))
+const resultsMessage = computed(() => {
+  if (props.loading && props.remoteSearch) return 'Mencari data…'
+  if (remoteSearchNeedsMoreCharacters.value)
+    return `Ketik minimal ${props.minimumInputLength} karakter untuk mencari seluruh data.`
+  return props.noResultsText
 })
 
 const hasValue = computed(() =>
@@ -156,7 +180,7 @@ function updateDropdownPosition() {
 }
 
 async function openDropdown() {
-  if (props.disabled || props.loading || isOpen.value) return
+  if (effectiveDisabled.value || isOpen.value) return
   isOpen.value = true
   search.value = ''
   highlightedIndex.value = Math.max(
@@ -255,12 +279,13 @@ function onViewportChange() {
   if (isOpen.value) updateDropdownPosition()
 }
 
-watch(
-  () => props.disabled,
-  (disabled) => {
-    if (disabled) closeDropdown()
-  },
-)
+watch(effectiveDisabled, (disabled) => {
+  if (disabled) closeDropdown()
+})
+
+watch(search, (term) => {
+  if (props.remoteSearch && isOpen.value) emit('search', term)
+})
 
 watch(filteredOptions, (options) => {
   if (!options.length) highlightedIndex.value = -1
@@ -293,7 +318,7 @@ onBeforeUnmount(() => {
       :name="name"
       :multiple="multiple"
       :required="required"
-      :disabled="disabled || loading"
+      :disabled="effectiveDisabled"
       :value="multiple ? undefined : normalizedValue"
       tabindex="-1"
       aria-hidden="true"
@@ -324,7 +349,7 @@ onBeforeUnmount(() => {
       class="select2-container select2-container--aims"
       :class="{
         'select2-container--open': isOpen,
-        'select2-container--disabled': disabled || loading,
+        'select2-container--disabled': effectiveDisabled,
         'select2-container--multiple': multiple,
         'select2-container--compact': compact,
       }"
@@ -332,8 +357,8 @@ onBeforeUnmount(() => {
       role="combobox"
       :aria-expanded="isOpen"
       :aria-controls="`${selectId}-results`"
-      :aria-disabled="disabled || loading"
-      :disabled="disabled || loading"
+      :aria-disabled="effectiveDisabled"
+      :disabled="effectiveDisabled"
       @click="toggleDropdown"
       @keydown="onTriggerKeydown"
     >
@@ -342,7 +367,9 @@ onBeforeUnmount(() => {
           class="select2-selection"
           :class="multiple ? 'select2-selection--multiple' : 'select2-selection--single'"
         >
-          <span v-if="loading" class="select2-selection__placeholder">Memuat…</span>
+          <span v-if="loading && !remoteSearch" class="select2-selection__placeholder"
+            >Memuat…</span
+          >
 
           <template v-else-if="multiple">
             <span v-if="selectedOptions.length" class="select2-selection__rendered">
@@ -426,8 +453,14 @@ onBeforeUnmount(() => {
             <span>{{ option.label }}</span>
             <span v-if="isSelected(option)" class="select2-results__check">✓</span>
           </li>
-          <li v-if="!filteredOptions.length" class="select2-results__message">
-            {{ noResultsText }}
+          <li
+            v-if="loading && remoteSearch"
+            class="select2-results__message select2-results__message--loading"
+          >
+            {{ resultsMessage }}
+          </li>
+          <li v-else-if="!filteredOptions.length" class="select2-results__message">
+            {{ resultsMessage }}
           </li>
         </ul>
       </div>

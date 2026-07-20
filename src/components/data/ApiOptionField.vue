@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
 import { apiClient } from '@/services/api-client'
 import { normalizeList } from '@/utils/api'
@@ -18,9 +18,21 @@ const props = withDefaults(
   { multiple: false, required: false, disabled: false, enumValues: () => [] },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
+
+interface CachedOptions {
+  storedAt: number
+  options: SelectOption[]
+}
+
+const OPTION_CACHE_TTL_MS = 5 * 60 * 1000
+const optionCache = new Map<string, CachedOptions>()
+
 const options = ref<SelectOption[]>([])
 const loading = ref(false)
 const source = computed(() => fieldOptionSources[props.fieldName])
+let debounceTimer: number | undefined
+let activeController: AbortController | undefined
+let requestSequence = 0
 
 const normalizedModelValue = computed<string | string[] | number | boolean>(() => {
   if (props.multiple) return Array.isArray(props.modelValue) ? props.modelValue.map(String) : []
@@ -29,6 +41,13 @@ const normalizedModelValue = computed<string | string[] | number | boolean>(() =
     ? value
     : ''
 })
+
+const isRemoteSearch = computed(() => Boolean(source.value?.remoteSearch))
+const minimumInputLength = computed(() => source.value?.minimumInputLength ?? 2)
+const debounceMs = computed(() => source.value?.debounceMs ?? 350)
+const remoteNoResultsText = computed(
+  () => `Data tidak ditemukan. Coba kata kunci lain minimal ${minimumInputLength.value} karakter.`,
+)
 
 function firstValue(row: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys)
@@ -55,7 +74,87 @@ function resolvePath(path: string): string | null {
   return result
 }
 
-async function load() {
+function selectedValues(): string[] {
+  if (props.multiple) return Array.isArray(props.modelValue) ? props.modelValue.map(String) : []
+  return props.modelValue === undefined || props.modelValue === null || props.modelValue === ''
+    ? []
+    : [String(props.modelValue)]
+}
+
+function selectedFallbackOptions(): SelectOption[] {
+  const values = selectedValues()
+  if (!values.length) return []
+
+  const base = props.fieldName.replace(/_ids?$/, '')
+  const labelPieces = [
+    props.rootModel[`${base}_code`],
+    props.rootModel[`${base}_name`],
+    props.rootModel[`${base}_label`],
+    props.rootModel[`${base}_no`],
+  ]
+    .filter((value) => value !== undefined && value !== null && value !== '')
+    .map(String)
+    .filter((value, index, all) => all.indexOf(value) === index)
+
+  if (!labelPieces.length) return []
+  const label = labelPieces.slice(0, 2).join(' - ')
+  return values.map((value) => ({ value, label }))
+}
+
+function mergeWithSelected(nextOptions: SelectOption[]): SelectOption[] {
+  const selected = new Set(selectedValues())
+  const merged = new Map<string, SelectOption>()
+
+  for (const option of nextOptions) merged.set(String(option.value), option)
+  for (const option of options.value)
+    if (selected.has(String(option.value))) merged.set(String(option.value), option)
+  for (const option of selectedFallbackOptions())
+    if (!merged.has(String(option.value))) merged.set(String(option.value), option)
+
+  return [...merged.values()]
+}
+
+function normalizeOptions(payload: unknown): SelectOption[] {
+  const rows = normalizeList<Record<string, unknown>>(payload)
+  const valueKeys = source.value?.valueKeys ?? ['value', 'id']
+  const labelKeys = source.value?.labelKeys ?? ['label', 'name', 'code']
+  return rows
+    .map((row) => ({
+      value: (firstValue(row, valueKeys) ?? '') as string | number | boolean,
+      label: optionLabel(row, labelKeys),
+    }))
+    .filter((item) => item.value !== '')
+}
+
+function buildQuery(searchTerm: string): Record<string, unknown> {
+  const query: Record<string, unknown> = {}
+  for (const [parameter, modelKey] of Object.entries(source.value?.queryFromModel ?? {})) {
+    const value = props.rootModel[modelKey]
+    if (value !== undefined && value !== null && value !== '') query[parameter] = value
+  }
+
+  const term = searchTerm.trim()
+  if (isRemoteSearch.value && term.length >= minimumInputLength.value) {
+    query[source.value?.searchParam ?? 'search'] = term
+  }
+  return query
+}
+
+function cacheKey(path: string, query: Record<string, unknown>): string {
+  return `${path}?${JSON.stringify(
+    Object.entries(query).sort(([left], [right]) => left.localeCompare(right)),
+  )}`
+}
+
+function isCanceledRequest(cause: unknown): boolean {
+  if (!cause || typeof cause !== 'object') return false
+  const error = cause as { code?: string; name?: string }
+  return (
+    error.code === 'ERR_CANCELED' || error.name === 'CanceledError' || error.name === 'AbortError'
+  )
+}
+
+async function load(searchTerm = '', force = false) {
   if (props.enumValues.length) {
     options.value = props.enumValues.map((value) => ({
       value,
@@ -68,33 +167,56 @@ async function load() {
     return
   }
   if (!source.value?.path) return
+
+  const term = searchTerm.trim()
+  if (isRemoteSearch.value && term.length > 0 && term.length < minimumInputLength.value) return
+
   const path = resolvePath(source.value.path)
   if (!path) {
-    options.value = []
+    options.value = mergeWithSelected([])
     return
   }
-  const query: Record<string, unknown> = {}
-  for (const [parameter, modelKey] of Object.entries(source.value.queryFromModel ?? {})) {
-    const value = props.rootModel[modelKey]
-    if (value !== undefined && value !== null && value !== '') query[parameter] = value
+
+  const query = buildQuery(term)
+  const key = cacheKey(path, query)
+  const cached = optionCache.get(key)
+  if (!force && cached && Date.now() - cached.storedAt < OPTION_CACHE_TTL_MS) {
+    options.value = mergeWithSelected(cached.options)
+    return
   }
+
+  activeController?.abort()
+  const controller = new AbortController()
+  activeController = controller
+  const sequence = ++requestSequence
   loading.value = true
+
   try {
-    const payload = await apiClient.get<unknown>(path, query)
-    const rows = normalizeList<Record<string, unknown>>(payload)
-    const valueKeys = source.value.valueKeys ?? ['value', 'id']
-    const labelKeys = source.value.labelKeys ?? ['label', 'name', 'code']
-    options.value = rows
-      .map((row) => ({
-        value: (firstValue(row, valueKeys) ?? '') as string | number | boolean,
-        label: optionLabel(row, labelKeys),
-      }))
-      .filter((item) => item.value !== '')
-  } catch {
-    options.value = []
+    const payload = await apiClient.get<unknown>(path, query, { signal: controller.signal })
+    if (sequence !== requestSequence) return
+    const nextOptions = normalizeOptions(payload)
+    optionCache.set(key, { storedAt: Date.now(), options: nextOptions })
+    options.value = mergeWithSelected(nextOptions)
+  } catch (cause) {
+    if (!isCanceledRequest(cause) && sequence === requestSequence) {
+      options.value = mergeWithSelected([])
+    }
   } finally {
-    loading.value = false
+    if (sequence === requestSequence) loading.value = false
   }
+}
+
+function scheduleRemoteSearch(term: string) {
+  if (!isRemoteSearch.value) return
+  if (debounceTimer) window.clearTimeout(debounceTimer)
+  activeController?.abort()
+
+  const normalized = term.trim()
+  if (normalized.length > 0 && normalized.length < minimumInputLength.value) return
+
+  debounceTimer = window.setTimeout(() => {
+    void load(normalized)
+  }, debounceMs.value)
 }
 
 function updateValue(value: string | string[]) {
@@ -110,9 +232,29 @@ const dependencies = computed(() =>
   ),
 )
 
-onMounted(load)
-watch(dependencies, load)
-watch(() => props.enumValues, load, { deep: true })
+onMounted(() => void load())
+watch(dependencies, () => {
+  activeController?.abort()
+  options.value = mergeWithSelected([])
+  void load()
+})
+watch(
+  () => props.enumValues,
+  () => void load(),
+  { deep: true },
+)
+watch(
+  () => props.modelValue,
+  () => {
+    options.value = mergeWithSelected(options.value)
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  activeController?.abort()
+  if (debounceTimer) window.clearTimeout(debounceTimer)
+})
 </script>
 
 <template>
@@ -123,8 +265,12 @@ watch(() => props.enumValues, load, { deep: true })
     :required="required"
     :disabled="disabled"
     :loading="loading"
+    :remote-search="isRemoteSearch"
+    :minimum-input-length="minimumInputLength"
+    :no-results-text="remoteNoResultsText"
     searchable
     clearable
+    @search="scheduleRemoteSearch"
     @update:model-value="updateValue"
   />
 </template>

@@ -517,3 +517,34 @@ test('resource actions keep hidden technical IDs available for API path paramete
   assert.match(resourceWorkbench, /resolveResourceId\(row, definition\.value\?\.idCandidates/)
   assert.match(resourceWorkbench, /resolveResourcePathValue\(/)
 })
+
+test('large item dropdowns use debounced server-side search without loading all records', async () => {
+  const fieldOptions = await readFile(
+    new URL('../src/config/field-options.ts', import.meta.url),
+    'utf8',
+  )
+  const resourceTypes = await readFile(new URL('../src/types/resource.ts', import.meta.url), 'utf8')
+
+  assert.match(fieldOptions, /item_id: option\('\/api\/v1\/items\/options'/)
+  assert.match(fieldOptions, /remoteSearch: true/)
+  assert.match(fieldOptions, /searchParam: 'search'/)
+  assert.match(fieldOptions, /minimumInputLength: 2/)
+  assert.match(fieldOptions, /debounceMs: 350/)
+  assert.match(resourceTypes, /remoteSearch\?: boolean/)
+  assert.match(apiOptionField, /@search="scheduleRemoteSearch"/)
+  assert.match(apiOptionField, /AbortController/)
+  assert.match(apiOptionField, /OPTION_CACHE_TTL_MS = 5 \* 60 \* 1000/)
+  assert.match(apiOptionField, /query\[source\.value\?\.searchParam \?\? 'search'\] = term/)
+  assert.doesNotMatch(apiOptionField, /query\.(?:limit|per_page|page_size)\s*=/)
+})
+
+test('remote Select2 preserves selected values and shows server-search feedback', () => {
+  assert.match(appSelect, /remoteSearch\?: boolean/)
+  assert.match(appSelect, /minimumInputLength\?: number/)
+  assert.match(appSelect, /emit\('search', term\)/)
+  assert.match(appSelect, /Ketik minimal \$\{props\.minimumInputLength\} karakter/)
+  assert.match(appSelect, /Mencari data…/)
+  assert.match(apiOptionField, /mergeWithSelected/)
+  assert.match(apiOptionField, /selectedFallbackOptions/)
+  assert.match(apiClientSource, /options: \{ signal\?: AbortSignal \} = \{\}/)
+})

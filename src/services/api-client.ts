@@ -14,8 +14,15 @@ async function rawResponse<T>(config: AxiosRequestConfig): Promise<AxiosResponse
 }
 
 export const apiClient = {
-  async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-    const { data } = await http.get(url, { params: sanitizeOptionsParams(url, params) })
+  async get<T>(
+    url: string,
+    params?: Record<string, unknown>,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<T> {
+    const { data } = await http.get(url, {
+      params: sanitizeOptionsParams(url, params),
+      signal: options.signal,
+    })
     return unwrapData<T>(data)
   },
   async getRaw<T>(

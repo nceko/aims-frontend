@@ -96,4 +96,12 @@ export interface FieldOptionSource {
   queryFromModel?: Record<string, string>
   pathFromModel?: Record<string, string>
   staticOptions?: Array<{ value: string | number | boolean; label: string }>
+  /** Use backend-side search instead of filtering a potentially large option list in the browser. */
+  remoteSearch?: boolean
+  /** Query parameter accepted by the backend options endpoint. */
+  searchParam?: string
+  /** Minimum non-empty search length before a remote request is sent. */
+  minimumInputLength?: number
+  /** Delay before sending a remote search request. */
+  debounceMs?: number
 }

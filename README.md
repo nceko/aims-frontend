@@ -323,3 +323,7 @@ QR hanya dibuat untuk item dengan `tracking_type = SERIAL` dan `accepted_qty > 0
 ## Detail relation dan tampilan ID
 
 Modal detail memakai `RelatedDataTable` untuk seluruh collection/array seperti item part number, supplier item, role, permission, access, history, dan relation lain. ID teknis tetap dipakai untuk API dan action, tetapi tidak ditampilkan kepada user. Nilai nama/kode yang bermakna ditampilkan sebagai gantinya.
+
+## Remote search dropdown data besar
+
+Dropdown Item memakai pencarian server-side agar ribuan item tidak dimuat sekaligus ke browser. Ketik minimal 2 karakter untuk mencari berdasarkan seluruh data backend. Request dikirim ke `/api/v1/items/options?search=...` tanpa parameter `limit`.
