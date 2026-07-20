@@ -459,7 +459,8 @@ async function postToStock(): Promise<void> {
     stopCamera()
     await loadReceipt()
   } catch (cause) {
-    error.value = errorMessage(cause, 'Hasil scan gagal diposting ke stok.')
+    const message = errorMessage(cause, 'Hasil scan gagal diposting ke stok.')
+    error.value = `${message} Transaksi dibatalkan; stok dan status Goods Receipt tidak berubah. Draft scan tetap tersimpan.`
     showPostConfirmation.value = false
   } finally {
     posting.value = false

@@ -565,6 +565,11 @@ export const permissionDefinitions: PermissionDefinition[] = [
     description: 'Mengubah goods receipt',
   },
   {
+    code: 'transaction.goods_receipts.reverse',
+    name: 'Reverse Goods Receipt Posting',
+    description: 'Membalikkan posting penerimaan barang sebagai tindakan koreksi terkontrol',
+  },
+  {
     code: 'transaction.goods_receipts.generate_qr',
     name: 'Generate Goods Receipt QR',
     description: 'Generate QR goods receipt',

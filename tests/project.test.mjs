@@ -539,24 +539,36 @@ test('resource actions keep hidden technical IDs available for API path paramete
   assert.match(resourceWorkbench, /resolveResourcePathValue\(/)
 })
 
-test('large item dropdowns use debounced server-side search without loading all records', async () => {
+test('large item and purchase-order selectors use searchable resource table modals', async () => {
   const fieldOptions = await readFile(
     new URL('../src/config/field-options.ts', import.meta.url),
     'utf8',
   )
-  const resourceTypes = await readFile(new URL('../src/types/resource.ts', import.meta.url), 'utf8')
+  const resourcePickers = await readFile(
+    new URL('../src/config/field-resource-pickers.ts', import.meta.url),
+    'utf8',
+  )
+  const resourcePicker = await readFile(
+    new URL('../src/components/data/ApiResourcePicker.vue', import.meta.url),
+    'utf8',
+  )
+  const schemaFields = await readFile(
+    new URL('../src/components/data/SchemaFields.vue', import.meta.url),
+    'utf8',
+  )
 
-  assert.match(fieldOptions, /item_id: option\('\/api\/v1\/items\/options'/)
-  assert.match(fieldOptions, /remoteSearch: true/)
-  assert.match(fieldOptions, /searchParam: 'search'/)
-  assert.match(fieldOptions, /minimumInputLength: 2/)
-  assert.match(fieldOptions, /debounceMs: 350/)
-  assert.match(resourceTypes, /remoteSearch\?: boolean/)
-  assert.match(apiOptionField, /@search="scheduleRemoteSearch"/)
-  assert.match(apiOptionField, /AbortController/)
-  assert.match(apiOptionField, /OPTION_CACHE_TTL_MS = 5 \* 60 \* 1000/)
-  assert.match(apiOptionField, /query\[source\.value\?\.searchParam \?\? 'search'\] = term/)
-  assert.doesNotMatch(apiOptionField, /query\.(?:limit|per_page|page_size)\s*=/)
+  assert.doesNotMatch(fieldOptions, /item_id: option\(/)
+  assert.doesNotMatch(fieldOptions, /po_id: option\(/)
+  assert.match(resourcePickers, /item_id:\s*\{[\s\S]*operationId: 'FindAllItems'/)
+  assert.match(
+    resourcePickers,
+    /po_id:\s*\{[\s\S]*operationId: 'FindEligiblePurchaseOrdersForReceipt'/,
+  )
+  assert.match(resourcePickers, /selectionEffects:\s*\{[\s\S]*uom_id: 'base_uom_id'/)
+  assert.match(resourcePicker, /@row-dblclick="choose\(\$event\)"/)
+  assert.match(resourcePicker, /Klik dua kali pada baris/)
+  assert.match(resourcePicker, /server-side/)
+  assert.match(schemaFields, /<ApiResourcePicker/)
 })
 
 test('remote Select2 preserves selected values and shows server-search feedback', () => {
@@ -641,4 +653,33 @@ test('reports are grouped by business area with backend-ready empty states', asy
   assert.match(reportsView, /label: 'Aset'/)
   assert.match(reportsView, /label: 'Audit'/)
   assert.match(reportsView, /Endpoint laporan untuk kelompok ini akan\s+ditambahkan/)
+})
+
+test('transaction actions use backend workflow statuses without legacy aliases', () => {
+  assert.match(modules, /statuses: \['READY_TO_SHIP'\]/)
+  assert.match(modules, /statuses: \['SHIPPED', 'PARTIALLY_RECEIVED'\]/)
+  assert.match(modules, /statuses: \['RECEIVED_BY_DESTINATION'\]/)
+  assert.match(modules, /statuses: \['COUNTING'\]/)
+  assert.doesNotMatch(modules, /statuses: \['PREPARED'\]/)
+  assert.doesNotMatch(modules, /statuses: \['IN_TRANSIT'/)
+  assert.doesNotMatch(modules, /statuses: \['DRAFT', 'SCANNED'\]/)
+})
+
+test('frontend exposes stock-check and traceable backend workflow contracts', async () => {
+  const metadata = JSON.parse(
+    await readFile(new URL('../src/generated/api-metadata.json', import.meta.url), 'utf8'),
+  )
+  assert.ok(metadata.operations.CheckItemRequestStock)
+  assert.ok(metadata.operations.MarkItemRequestWaitingPurchase)
+  assert.ok(metadata.operations.CompleteItemRequest)
+  assert.ok(metadata.operations.UpdateGoodsReceiptLines)
+  assert.ok(metadata.operations.FindAssetAssignments)
+  assert.ok(metadata.operations.FindAssetAssignmentByID)
+  assert.ok(metadata.operations.CreatePurchaseOrder.body.properties.source_request_id)
+  assert.ok(
+    metadata.operations.CreatePurchaseOrder.body.properties.lines.items.properties.request_line_id,
+  )
+  assert.match(modules, /operationId: 'CheckItemRequestStock'/)
+  assert.match(modules, /operationId: 'UpdateGoodsReceiptLines'/)
+  assert.match(modules, /'asset-assignments': crud/)
 })

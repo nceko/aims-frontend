@@ -80,20 +80,20 @@ const router = createRouter({
           path: 'assets/assignments',
           name: 'asset-assignments',
           component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),
-          props: { moduleKey: 'assets' },
+          props: { moduleKey: 'asset-assignments' },
           meta: {
             permission: 'inventory.asset_assignments.read',
             pageTitle: 'Assignment Aktif',
             pageDescription:
               'Pilih aset tersedia lalu assign kepada pegawai, divisi, lokasi, atau kendaraan.',
-            detailActionOperationIds: ['AssignAsset', 'CreateHandover'],
+            detailActionOperationIds: ['CreateHandover'],
           },
         },
         {
           path: 'assets/returns',
           name: 'asset-returns',
           component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),
-          props: { moduleKey: 'assets' },
+          props: { moduleKey: 'asset-assignments' },
           meta: {
             permission: 'inventory.asset_assignments.read',
             pageTitle: 'Pengembalian Aset',
@@ -106,7 +106,7 @@ const router = createRouter({
           path: 'assets/transfers',
           name: 'asset-transfers',
           component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),
-          props: { moduleKey: 'assets' },
+          props: { moduleKey: 'asset-assignments' },
           meta: {
             permission: 'inventory.asset_assignments.read',
             pageTitle: 'Transfer Penanggung Jawab',

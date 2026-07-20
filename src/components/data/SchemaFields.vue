@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { Plus, Trash2 } from '@lucide/vue'
 import ApiOptionField from './ApiOptionField.vue'
+import ApiResourcePicker from './ApiResourcePicker.vue'
 import type { ApiSchema } from '@/types/resource'
 import { fieldOptionSources, humanizeField } from '@/config/field-options'
+import { fieldResourcePickers } from '@/config/field-resource-pickers'
 import { initialValue, inputType, isLongTextField } from '@/utils/schema'
 
 defineOptions({ name: 'SchemaFields' })
@@ -29,8 +31,24 @@ const entries = computed(() =>
 function update(key: string, value: unknown) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
+function hasResourcePicker(name: string): boolean {
+  return Boolean(fieldResourcePickers[name])
+}
 function hasOptions(name: string, schema: ApiSchema): boolean {
   return Boolean(fieldOptionSources[name] || schema.enum?.length)
+}
+function applyResourceSelection(name: string, row: Record<string, unknown>) {
+  const source = fieldResourcePickers[name]
+  if (!source) return
+  const patch: Record<string, unknown> = {
+    [name]: row[source.valueKey],
+  }
+  for (const [targetKey, sourceKey] of Object.entries(source.selectionEffects ?? {})) {
+    const value = row[sourceKey]
+    if (value !== undefined && value !== null) patch[targetKey] = value
+  }
+  for (const field of source.clearFields ?? []) patch[field] = ''
+  emit('update:modelValue', { ...props.modelValue, ...patch })
 }
 function addArrayItem(key: string, schema: ApiSchema) {
   const current = Array.isArray(props.modelValue[key])
@@ -134,8 +152,19 @@ function updatePrimitiveArray(key: string, event: Event) {
         <span class="field__label"
           >{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></span
         >
+        <ApiResourcePicker
+          v-if="hasResourcePicker(name)"
+          :field-name="name"
+          :model-value="modelValue[name]"
+          :root-model="root"
+          :source="fieldResourcePickers[name]!"
+          :required="requiredFields.has(name)"
+          :disabled="disabled"
+          @update:model-value="update(name, $event)"
+          @select="applyResourceSelection(name, $event)"
+        />
         <ApiOptionField
-          v-if="hasOptions(name, child)"
+          v-else-if="hasOptions(name, child)"
           :field-name="name"
           :model-value="modelValue[name]"
           :root-model="root"

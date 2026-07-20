@@ -76,6 +76,7 @@ const rowMenuButton = ref<HTMLElement | null>(null)
 const rowMenuElement = ref<HTMLElement | null>(null)
 const rowMenuPosition = reactive({ top: 0, left: 0, width: 220 })
 const query = reactive<Record<string, unknown>>({})
+const activeListView = ref('')
 const formHint = ref('')
 const hydrating = ref(false)
 const lastHydratedReference = ref('')
@@ -145,13 +146,18 @@ const globalActions = computed(() =>
       ),
   ),
 )
+const listViews = computed(() => definition.value?.listViews ?? [])
+const currentListView = computed(
+  () => listViews.value.find((view) => view.key === activeListView.value) ?? listViews.value[0],
+)
 const visibleDetailActions = computed(() => {
   const allowedOperationIds = Array.isArray(route.meta.detailActionOperationIds)
     ? (route.meta.detailActionOperationIds as string[])
     : []
+  const row = selected.value
   return (definition.value?.detailActions ?? []).filter(
     (action) =>
-      can(action.permission) &&
+      (!row || actionVisible(action, row)) &&
       (!allowedOperationIds.length || allowedOperationIds.includes(action.operationId)),
   )
 })
@@ -218,6 +224,21 @@ function actionVisible(action: ResourceActionDefinition, row: Record<string, unk
   if (action.hideStatuses?.includes(status)) return false
   return true
 }
+function rowEditable(row: Record<string, unknown>): boolean {
+  if (
+    !updateOperation.value ||
+    !can(definition.value?.updatePermission) ||
+    definition.value?.readOnly
+  )
+    return false
+  const statuses = definition.value?.editableStatuses
+  return !statuses?.length || statuses.includes(rowStatus(row))
+}
+function rowDeletable(row: Record<string, unknown>): boolean {
+  if (!definition.value?.deleteOperationId || !can(definition.value.deletePermission)) return false
+  const statuses = definition.value.deletableStatuses
+  return !statuses?.length || statuses.includes(rowStatus(row))
+}
 function extractTotal(payload: unknown): number {
   if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
     const raw = payload as Record<string, unknown>
@@ -263,6 +284,7 @@ async function load() {
         per_page: perPage.value,
         page_size: perPage.value,
         search: search.value || undefined,
+        ...(currentListView.value?.query ?? {}),
         ...query,
       },
     })
@@ -292,7 +314,7 @@ function openCreate() {
   showForm.value = true
 }
 async function openEdit(row: Record<string, unknown>) {
-  if (!updateOperation.value?.body || !definition.value) return
+  if (!rowEditable(row) || !updateOperation.value?.body || !definition.value) return
   selected.value = row
   let source: unknown = row
   if (definition.value.detailOperationId) {
@@ -570,7 +592,44 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
   formOperation.value = operation
   if (operation.body?.properties && Object.keys(operation.body.properties).length) {
     formMode.value = 'action'
-    formModel.value = initialValue(operation.body) as Record<string, unknown>
+    let source: unknown = initialValue(operation.body)
+    if (
+      ['UpdateGoodsReceiptLines', 'ApproveItemRequest'].includes(action.operationId) &&
+      row &&
+      definition.value?.detailOperationId
+    ) {
+      const detailOperation = getOperation(definition.value.detailOperationId)
+      if (detailOperation) {
+        try {
+          const actionDetail = asRecord(
+            await executeOperation(definition.value.detailOperationId, {
+              path: pathValues(detailOperation, row),
+            }),
+          )
+          if (action.operationId === 'ApproveItemRequest') {
+            const lines = Array.isArray(actionDetail.lines) ? actionDetail.lines : []
+            source = {
+              notes: actionDetail.notes ?? '',
+              lines: lines.map((raw) => {
+                const line = asRecord(raw)
+                return {
+                  request_line_id: line.request_line_id,
+                  approved_qty:
+                    asNumber(line.approved_qty) > 0
+                      ? asNumber(line.approved_qty)
+                      : asNumber(line.requested_qty),
+                }
+              }),
+            }
+          } else {
+            source = actionDetail
+          }
+        } catch {
+          source = row
+        }
+      }
+    }
+    formModel.value = mergeModel(operation.body, source) as Record<string, unknown>
     showForm.value = true
     return
   }
@@ -815,6 +874,13 @@ function changePageSize(value?: string | string[]) {
   page.value = 1
   void load()
 }
+function chooseListView(key: string): void {
+  if (activeListView.value === key) return
+  activeListView.value = key
+  page.value = 1
+  closeRowMenu()
+  void load()
+}
 
 watch(success, (message) => {
   window.clearTimeout(successNoticeTimer)
@@ -854,6 +920,7 @@ onBeforeUnmount(() => {
 })
 function resetWorkbench(): void {
   clearNotices()
+  activeListView.value = definition.value?.listViews?.[0]?.key ?? ''
   closeRowMenu()
   showDetail.value = false
   showForm.value = false
@@ -933,6 +1000,23 @@ watch(
       <button type="button" aria-label="Tutup pesan sukses" @click="clearSuccessNotice">×</button>
     </div>
 
+    <div
+      v-if="listViews.length"
+      class="resource-list-views"
+      role="tablist"
+      aria-label="Filter status dokumen"
+    >
+      <button
+        v-for="view in listViews"
+        :key="view.key"
+        type="button"
+        :class="{ active: currentListView?.key === view.key }"
+        @click="chooseListView(view.key)"
+      >
+        {{ view.label }}
+      </button>
+    </div>
+
     <AppCard flush class="resource-table-card">
       <AppDataTable
         v-model:search="search"
@@ -962,7 +1046,7 @@ watch(
               <Eye :size="16" />
             </button>
             <button
-              v-if="updateOperation && can(definition.updatePermission) && !definition.readOnly"
+              v-if="rowEditable(row)"
               class="table-action"
               type="button"
               title="Edit"
@@ -971,7 +1055,7 @@ watch(
               <Pencil :size="16" />
             </button>
             <button
-              v-if="definition.deleteOperationId && can(definition.deletePermission)"
+              v-if="rowDeletable(row)"
               class="table-action table-action--danger"
               type="button"
               title="Hapus"

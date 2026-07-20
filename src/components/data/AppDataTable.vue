@@ -63,6 +63,8 @@ const emit = defineEmits<{
   'update:perPage': [value: number]
   'page-change': [page: number]
   refresh: []
+  'row-click': [row: DataTableRow]
+  'row-dblclick': [row: DataTableRow]
 }>()
 
 const sortKey = ref('')
@@ -273,7 +275,12 @@ function resolveRowKey(row: DataTableRow, index: number): string | number {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, index) in displayRows" :key="resolveRowKey(row, index)">
+          <tr
+            v-for="(row, index) in displayRows"
+            :key="resolveRowKey(row, index)"
+            @click="emit('row-click', row)"
+            @dblclick="emit('row-dblclick', row)"
+          >
             <td
               v-for="column in visibleColumns"
               :key="column.key"

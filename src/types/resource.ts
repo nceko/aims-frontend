@@ -76,6 +76,13 @@ export interface ResourceModuleDefinition {
   statusCandidates?: string[]
   columns?: string[]
   searchableFields?: string[]
+  listViews?: Array<{
+    key: string
+    label: string
+    query?: Record<string, string | number | boolean>
+  }>
+  editableStatuses?: string[]
+  deletableStatuses?: string[]
   actions?: ResourceActionDefinition[]
   detailActions?: ResourceActionDefinition[]
   childSections?: Array<{
@@ -104,4 +111,18 @@ export interface FieldOptionSource {
   minimumInputLength?: number
   /** Delay before sending a remote search request. */
   debounceMs?: number
+}
+
+export interface FieldResourcePickerSource {
+  operationId: string
+  detailOperationId?: string
+  valueKey: string
+  labelKeys: string[]
+  columns: Array<{ key: string; label: string; width?: string }>
+  searchPlaceholder?: string
+  title?: string
+  description?: string
+  queryFromModel?: Record<string, string>
+  selectionEffects?: Record<string, string>
+  clearFields?: string[]
 }
