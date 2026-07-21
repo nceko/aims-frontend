@@ -1,12 +1,45 @@
 import metadata from '@/generated/api-metadata.json'
 import { apiClient } from './api-client'
-import type { ApiOperation } from '@/types/resource'
+import type { ApiOperation, ApiSchema } from '@/types/resource'
+import { operationSchemaOverrides } from '@/config/operation-schema-overrides'
 
 const operationMap = metadata.operations as unknown as Record<string, ApiOperation>
 
+function mergeSchema(base?: ApiSchema | null, override?: ApiSchema | null): ApiSchema | null {
+  if (override === null) return null
+  if (!base) return override ?? null
+  if (!override) return base
+  const properties: Record<string, ApiSchema> = { ...(base.properties ?? {}) }
+  for (const [key, value] of Object.entries(override.properties ?? {})) {
+    properties[key] = mergeSchema(properties[key], value) ?? value
+  }
+  return {
+    ...base,
+    ...override,
+    required: [...new Set([...(base.required ?? []), ...(override.required ?? [])])],
+    properties: Object.keys(properties).length ? properties : undefined,
+    items: mergeSchema(base.items, override.items) ?? undefined,
+  }
+}
+
 export function getOperation(operationId?: string): ApiOperation | undefined {
   if (!operationId) return undefined
-  return operationMap[operationId]
+  const operation = operationMap[operationId]
+  if (!operation) return undefined
+  const override = operationSchemaOverrides[operationId]
+  if (!override) return operation
+  return {
+    ...operation,
+    ...override,
+    operationId: operation.operationId,
+    method: override.method ?? operation.method,
+    path: override.path ?? operation.path,
+    summary: override.summary ?? operation.summary,
+    tags: override.tags ?? operation.tags,
+    parameters: override.parameters ?? operation.parameters,
+    body: mergeSchema(operation.body, override.body),
+    response: mergeSchema(operation.response, override.response),
+  }
 }
 
 export function fillPath(

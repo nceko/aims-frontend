@@ -629,20 +629,29 @@ test('asset navigation separates warehouse direct migration and assignment lifec
   assert.match(navigation, /label: 'Transfer Penanggung Jawab'/)
 })
 
-test('frontend scaffolds backend-pending direct asset and migration workflows', async () => {
+test('frontend implements direct acquisition and existing asset migration workflows', async () => {
   const router = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
-  const plannedWorkflow = await readFile(
-    new URL('../src/modules/workflow/PlannedWorkflowView.vue', import.meta.url),
+  const directAssetView = await readFile(
+    new URL('../src/modules/assets/DirectAssetAcquisitionView.vue', import.meta.url),
+    'utf8',
+  )
+  const migrationView = await readFile(
+    new URL('../src/modules/assets/AssetMigrationView.vue', import.meta.url),
     'utf8',
   )
   assert.match(router, /assets\/direct-acquisitions/)
   assert.match(router, /assets\/migrations/)
   assert.match(router, /inventory\/direct-issues/)
-  assert.match(plannedWorkflow, /Kebutuhan Backend/)
-  assert.match(plannedWorkflow, /Struktur frontend sudah disiapkan/)
+  assert.match(directAssetView, /directAcquisitions/)
+  assert.match(directAssetView, /Tambah Aset Langsung/)
+  assert.match(migrationView, /Preview & Validasi/)
+  assert.match(
+    migrationView,
+    /Commit Asset Migrations|Commit \{\{ selected\?\.valid_rows \}\} Aset/,
+  )
 })
 
-test('reports are grouped by business area with backend-ready empty states', async () => {
+test('reports are grouped by business area and procurement/audit endpoints are implemented', async () => {
   const reportsView = await readFile(
     new URL('../src/modules/reports/ReportsView.vue', import.meta.url),
     'utf8',
@@ -652,7 +661,11 @@ test('reports are grouped by business area with backend-ready empty states', asy
   assert.match(reportsView, /label: 'Pemakaian & Distribusi'/)
   assert.match(reportsView, /label: 'Aset'/)
   assert.match(reportsView, /label: 'Audit'/)
-  assert.match(reportsView, /Endpoint laporan untuk kelompok ini akan\s+ditambahkan/)
+  assert.match(reportsView, /\/api\/v1\/reports\/purchase-orders/)
+  assert.match(reportsView, /\/api\/v1\/reports\/supplier-performance/)
+  assert.match(reportsView, /\/api\/v1\/reports\/posting-history/)
+  assert.match(reportsView, /\/api\/v1\/reports\/failed-transactions/)
+  assert.doesNotMatch(reportsView, /Endpoint laporan untuk kelompok ini akan\s+ditambahkan/)
 })
 
 test('transaction actions use backend workflow statuses without legacy aliases', () => {
@@ -682,4 +695,78 @@ test('frontend exposes stock-check and traceable backend workflow contracts', as
   assert.match(modules, /operationId: 'CheckItemRequestStock'/)
   assert.match(modules, /operationId: 'UpdateGoodsReceiptLines'/)
   assert.match(modules, /'asset-assignments': crud/)
+})
+
+test('delivery workflow exposes picking packing and scan stages', async () => {
+  const metadata = JSON.parse(
+    await readFile(new URL('../src/generated/api-metadata.json', import.meta.url), 'utf8'),
+  )
+  assert.ok(metadata.operations.StartDeliveryOrderPicking)
+  assert.ok(metadata.operations.ConfirmDeliveryOrderPicking)
+  assert.ok(metadata.operations.ConfirmDeliveryOrderPacking)
+  assert.match(modules, /operationId: 'StartDeliveryOrderPicking'/)
+  assert.match(modules, /operationId: 'ConfirmDeliveryOrderPicking'/)
+  assert.match(modules, /operationId: 'ConfirmDeliveryOrderPacking'/)
+  assert.match(modules, /statuses: \['PICKING'\]/)
+  assert.match(modules, /statuses: \['PACKING'\]/)
+})
+
+test('complaint workflow exposes return and replacement lifecycle actions', async () => {
+  const metadata = JSON.parse(
+    await readFile(new URL('../src/generated/api-metadata.json', import.meta.url), 'utf8'),
+  )
+  for (const operation of [
+    'ApproveComplaintReturn',
+    'RegisterComplaintReturn',
+    'StartComplaintReplacement',
+    'MarkComplaintReplacementShipped',
+    'ConfirmComplaintReplacement',
+  ]) {
+    assert.ok(metadata.operations[operation])
+    assert.match(modules, new RegExp(`operationId: '${operation}'`))
+  }
+  assert.match(modules, /statuses: \['APPROVED_RETURN'\]/)
+  assert.match(modules, /statuses: \['REPLACEMENT_PROCESS'\]/)
+  assert.match(modules, /statuses: \['REPLACEMENT_SHIPPED'\]/)
+})
+
+test('request-based and direct issues use distinct issue modes', async () => {
+  const router = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
+  const workbench = await readFile(
+    new URL('../src/modules/resource/ResourceWorkbenchView.vue', import.meta.url),
+    'utf8',
+  )
+  const pickerConfig = await readFile(
+    new URL('../src/config/field-resource-pickers.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(router, /issue_mode: 'DIRECT'/)
+  assert.match(workbench, /issue_mode: 'REQUEST'/)
+  assert.match(workbench, /hydrateTransactionReference\('usage-request'/)
+  assert.match(workbench, /request_line_id: line\.request_line_id/)
+  assert.match(pickerConfig, /source_request_id:[\s\S]*FindAllItemRequests/)
+})
+
+test('minimum and low stock are presented in one workspace', async () => {
+  const minimumView = await readFile(
+    new URL('../src/modules/inventory/MinimumStockControlView.vue', import.meta.url),
+    'utf8',
+  )
+  const router = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
+  assert.match(navigation, /label: 'Minimum & Low Stock'/)
+  assert.match(router, /inventory\/minimum-low-stock/)
+  assert.match(minimumView, /module-key="active"/)
+  assert.match(minimumView, /'stock-thresholds'/)
+  assert.match(minimumView, /'low-stock'/)
+})
+
+test('direct asset registration supports an optional initial assignment', async () => {
+  const directAssetView = await readFile(
+    new URL('../src/modules/assets/DirectAssetAcquisitionView.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(directAssetView, /assignImmediately/)
+  assert.match(directAssetView, /initial_assignment:/)
+  assert.match(directAssetView, /Langsung tugaskan aset setelah registrasi/)
+  assert.match(directAssetView, /responsibility_type/)
 })

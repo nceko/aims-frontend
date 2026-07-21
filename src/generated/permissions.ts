@@ -781,6 +781,41 @@ export const permissionDefinitions: PermissionDefinition[] = [
     name: 'Reverse Landed Costs',
     description: 'Membalik landed cost yang sudah diposting jika belum ada cost movement lanjutan.',
   },
+  {
+    code: 'reports.procurement.read',
+    name: 'Read Procurement Reports',
+    description: 'Melihat laporan purchase order, penerimaan, supplier, komplain, dan landed cost.',
+  },
+  {
+    code: 'inventory.asset_direct_acquisitions.read',
+    name: 'Read Direct Asset Acquisitions',
+    description: 'Melihat daftar dan detail perolehan aset langsung.',
+  },
+  {
+    code: 'inventory.asset_direct_acquisitions.create',
+    name: 'Create Direct Asset Acquisitions',
+    description: 'Mendaftarkan aset yang diperoleh langsung tanpa masuk saldo gudang.',
+  },
+  {
+    code: 'inventory.asset_migrations.read',
+    name: 'Read Asset Migrations',
+    description: 'Melihat batch dan hasil validasi migrasi aset existing.',
+  },
+  {
+    code: 'inventory.asset_migrations.create',
+    name: 'Create Asset Migrations',
+    description: 'Membuat preview batch migrasi aset existing.',
+  },
+  {
+    code: 'inventory.asset_migrations.commit',
+    name: 'Commit Asset Migrations',
+    description: 'Memproses baris valid dalam batch migrasi aset ke register aset.',
+  },
+  {
+    code: 'approvals.inbox.read',
+    name: 'Read Approval Inbox',
+    description: 'Melihat daftar dokumen lintas modul yang menunggu persetujuan atau tindakan.',
+  },
 ]
 
 export const permissionCodes = new Set(permissionDefinitions.map((item) => item.code))

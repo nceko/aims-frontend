@@ -155,6 +155,105 @@ const reports: ReportDefinition[] = [
     path: '/api/v1/reports/asset-depreciation',
     permission: 'inventory.asset_depreciation.read',
   },
+  {
+    key: 'purchase-orders',
+    group: 'procurement',
+    title: 'Purchase Order',
+    description: 'Status, nilai, penerimaan, dan outstanding Purchase Order.',
+    path: '/api/v1/reports/purchase-orders',
+    permission: 'reports.procurement.read',
+    exportable: true,
+  },
+  {
+    key: 'purchase-order-fulfillment',
+    group: 'procurement',
+    title: 'Pemenuhan Purchase Order',
+    description: 'Pemenuhan quantity per line PO dan sisa yang belum diterima.',
+    path: '/api/v1/reports/purchase-order-fulfillment',
+    permission: 'reports.procurement.read',
+    exportable: true,
+  },
+  {
+    key: 'goods-receipts',
+    group: 'procurement',
+    title: 'Penerimaan Barang',
+    description: 'Riwayat penerimaan vendor, pemeriksaan, dan posting ke stok.',
+    path: '/api/v1/reports/goods-receipts',
+    permission: 'reports.procurement.read',
+    exportable: true,
+  },
+  {
+    key: 'landed-costs',
+    group: 'procurement',
+    title: 'Landed Cost',
+    description: 'Biaya tambahan pengadaan dan nilai yang sudah dialokasikan.',
+    path: '/api/v1/reports/landed-costs',
+    permission: 'reports.procurement.read',
+    exportable: true,
+  },
+  {
+    key: 'vendor-complaints',
+    group: 'procurement',
+    title: 'Komplain Vendor',
+    description: 'Barang rusak, salah, kurang, retur, dan status penyelesaian.',
+    path: '/api/v1/reports/vendor-complaints',
+    permission: 'reports.procurement.read',
+    exportable: true,
+  },
+  {
+    key: 'supplier-performance',
+    group: 'procurement',
+    title: 'Kinerja Supplier',
+    description: 'Rasio pemenuhan PO, penerimaan, dan jumlah komplain supplier.',
+    path: '/api/v1/reports/supplier-performance',
+    permission: 'reports.procurement.read',
+    exportable: true,
+  },
+  {
+    key: 'posting-history',
+    group: 'audit',
+    title: 'Riwayat Posting',
+    description: 'Aktivitas posting dan persetujuan transaksi.',
+    path: '/api/v1/reports/posting-history',
+    permission: 'reports.audit.read',
+    exportable: true,
+  },
+  {
+    key: 'reversals',
+    group: 'audit',
+    title: 'Riwayat Reversal',
+    description: 'Aktivitas pembalikan transaksi dan stok.',
+    path: '/api/v1/reports/reversals',
+    permission: 'reports.audit.read',
+    exportable: true,
+  },
+  {
+    key: 'document-status-history',
+    group: 'audit',
+    title: 'Riwayat Status Dokumen',
+    description: 'Perubahan status seluruh dokumen operasional.',
+    path: '/api/v1/reports/document-status-history',
+    permission: 'reports.audit.read',
+    exportable: true,
+  },
+  {
+    key: 'failed-transactions',
+    group: 'audit',
+    title: 'Transaksi Gagal',
+    description: 'Request transaksi yang gagal beserta kode response dan error.',
+    path: '/api/v1/reports/failed-transactions',
+    permission: 'reports.audit.read',
+    exportable: true,
+  },
+  {
+    key: 'stock-corrections',
+    group: 'audit',
+    title: 'Koreksi Stok',
+    description: 'Movement adjustment, opname, dan reversal yang mengoreksi stok.',
+    path: '/api/v1/reports/stock-corrections',
+    permission: 'reports.audit.read',
+    exportable: true,
+  },
 ]
 const auth = useAuthStore()
 const visibleReports = computed(() => reports.filter((item) => auth.can(item.permission)))
@@ -303,12 +402,12 @@ function choose(report: ReportDefinition) {
       </aside>
       <AppCard
         v-if="!groupedReports.length"
-        title="Laporan belum tersedia"
+        title="Laporan tidak tersedia untuk akses Anda"
         :subtitle="activeGroupInfo?.description"
       >
         <div class="report-group-empty">
-          Struktur menu laporan sudah disiapkan. Endpoint laporan untuk kelompok ini akan
-          ditambahkan pada tahap backend.
+          Endpoint laporan untuk kelompok ini sudah tersedia, tetapi akun Anda belum mempunyai
+          permission laporan yang diperlukan.
         </div>
       </AppCard>
       <AppCard v-else-if="active" flush>

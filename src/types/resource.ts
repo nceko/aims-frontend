@@ -123,6 +123,7 @@ export interface FieldResourcePickerSource {
   title?: string
   description?: string
   queryFromModel?: Record<string, string>
+  fixedQuery?: Record<string, string | number | boolean>
   selectionEffects?: Record<string, string>
   clearFields?: string[]
 }

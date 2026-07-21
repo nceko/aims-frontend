@@ -172,13 +172,8 @@ export const navigation: NavItem[] = [
             permission: 'inventory.item_units.read',
           },
           {
-            label: 'Pengaturan Minimum Stok',
-            to: '/inventory/stock-thresholds',
-            permission: 'inventory.stock_thresholds.read',
-          },
-          {
-            label: 'Item Low Stock',
-            to: '/inventory/low-stock',
+            label: 'Minimum & Low Stock',
+            to: '/inventory/minimum-low-stock',
             permission: 'inventory.stock_thresholds.read',
           },
           {
@@ -263,7 +258,12 @@ export const navigation: NavItem[] = [
       },
       {
         label: 'Register Aset',
-        permissionAny: ['inventory.assets.read', 'inventory.assets.update'],
+        permissionAny: [
+          'inventory.assets.read',
+          'inventory.assets.update',
+          'inventory.asset_direct_acquisitions.read',
+          'inventory.asset_migrations.read',
+        ],
         children: [
           { label: 'Semua Aset', to: '/assets/register', permission: 'inventory.assets.read' },
           {
@@ -274,12 +274,12 @@ export const navigation: NavItem[] = [
           {
             label: 'Aset Langsung',
             to: '/assets/direct-acquisitions',
-            permission: 'inventory.assets.read',
+            permission: 'inventory.asset_direct_acquisitions.read',
           },
           {
             label: 'Migrasi / Aset Existing',
             to: '/assets/migrations',
-            permission: 'inventory.assets.read',
+            permission: 'inventory.asset_migrations.read',
           },
         ],
       },
@@ -341,6 +341,7 @@ export const navigation: NavItem[] = [
     to: '/approvals',
     icon: ClipboardCheck,
     permissionAny: [
+      'approvals.inbox.read',
       'dashboard.read',
       'transaction.purchase_orders.update',
       'transaction.item_requests.approve',
@@ -357,6 +358,8 @@ export const navigation: NavItem[] = [
     icon: FileBarChart,
     permissionAny: [
       'reports.inventory.read',
+      'reports.procurement.read',
+      'reports.audit.read',
       'reports.inventory_valuation.read',
       'reports.assets.read',
       'reports.asset_valuation.read',

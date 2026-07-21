@@ -1,6 +1,48 @@
 import type { FieldResourcePickerSource } from '@/types/resource'
 
 export const fieldResourcePickers: Record<string, FieldResourcePickerSource> = {
+  source_request_id: {
+    operationId: 'FindAllItemRequests',
+    detailOperationId: 'FindItemRequestByID',
+    valueKey: 'request_id',
+    labelKeys: ['request_no', 'requester_warehouse'],
+    title: 'Pilih Permintaan Barang',
+    description:
+      'Pilih permintaan yang sudah disetujui dan masih memiliki quantity yang belum dipenuhi.',
+    searchPlaceholder: 'Cari nomor permintaan, warehouse, lokasi, atau status…',
+    fixedQuery: {
+      status: 'APPROVED,STOCK_AVAILABLE,PROCESSING_DELIVERY,PARTIALLY_FULFILLED',
+    },
+    columns: [
+      { key: 'request_no', label: 'Nomor Permintaan', width: '220px' },
+      { key: 'requester_warehouse', label: 'Warehouse Peminta' },
+      { key: 'requester_location', label: 'Lokasi Peminta' },
+      { key: 'priority', label: 'Prioritas', width: '110px' },
+      { key: 'needed_date', label: 'Tanggal Dibutuhkan' },
+      { key: 'status', label: 'Status', width: '170px' },
+    ],
+  },
+  request_id: {
+    operationId: 'FindAllItemRequests',
+    detailOperationId: 'FindItemRequestByID',
+    valueKey: 'request_id',
+    labelKeys: ['request_no', 'requester_warehouse'],
+    title: 'Pilih Permintaan untuk Pengiriman',
+    description:
+      'Pilih permintaan yang sudah disetujui dan masih memiliki quantity yang dapat dikirim.',
+    searchPlaceholder: 'Cari nomor permintaan, warehouse, lokasi, atau status…',
+    fixedQuery: {
+      status: 'APPROVED,STOCK_AVAILABLE,PROCESSING_DELIVERY,PARTIALLY_FULFILLED',
+    },
+    columns: [
+      { key: 'request_no', label: 'Nomor Permintaan', width: '220px' },
+      { key: 'requester_warehouse', label: 'Warehouse Tujuan' },
+      { key: 'requester_location', label: 'Lokasi Tujuan' },
+      { key: 'priority', label: 'Prioritas', width: '110px' },
+      { key: 'needed_date', label: 'Tanggal Dibutuhkan' },
+      { key: 'status', label: 'Status', width: '170px' },
+    ],
+  },
   item_id: {
     operationId: 'FindAllItems',
     detailOperationId: 'FindItemByID',

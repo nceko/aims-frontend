@@ -93,6 +93,7 @@ async function load(): Promise<void> {
         page: page.value,
         per_page: perPage.value,
         search: search.value || undefined,
+        ...(props.source.fixedQuery ?? {}),
         ...queryFromModel(),
       },
     })

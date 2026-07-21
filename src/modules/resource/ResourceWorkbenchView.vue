@@ -40,9 +40,15 @@ const displayDescription = computed(() =>
 const createButtonLabel = computed(() => String(route.meta.createLabel ?? 'Tambah'))
 const createDefaults = computed<Record<string, unknown>>(() => {
   const value = route.meta.createDefaults
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  const routeDefaults =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {}
+  const moduleDefaults: Record<string, unknown> =
+    definition.value?.key === 'item-usages'
+      ? { issue_mode: 'REQUEST', usage_type: 'OPERATIONAL' }
+      : {}
+  return { ...moduleDefaults, ...routeDefaults }
 })
 const rows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
@@ -87,6 +93,7 @@ const qrLabels = ref<GoodsReceiptQrLabel[]>([])
 const qrLabelNotice = ref('')
 let successNoticeTimer: number | undefined
 let errorNoticeTimer: number | undefined
+let lastAutoOpenedDocument = ''
 
 function clearSuccessNotice(): void {
   window.clearTimeout(successNoticeTimer)
@@ -272,6 +279,20 @@ function pathValues(
   }
   return values
 }
+async function maybeOpenRequestedDocument(): Promise<void> {
+  const rawID = Array.isArray(route.query.document_id)
+    ? route.query.document_id[0]
+    : route.query.document_id
+  const id = Number(rawID)
+  if (!Number.isFinite(id) || id <= 0 || !definition.value?.detailOperationId) return
+  const key = `${props.moduleKey}:${id}`
+  if (lastAutoOpenedDocument === key) return
+  lastAutoOpenedDocument = key
+  const matching = rows.value.find((row) => Number(rowId(row)) === id)
+  const idKey = definition.value.idCandidates?.[0] ?? 'id'
+  await openDetail(matching ?? { [idKey]: id })
+}
+
 async function load() {
   if (!definition.value || !listOperation.value) return
   loading.value = true
@@ -291,6 +312,7 @@ async function load() {
     rows.value = normalizeList<Record<string, unknown>>(payload)
     total.value = extractTotal(payload)
     hasMore.value = rows.value.length >= perPage.value
+    await maybeOpenRequestedDocument()
   } catch (cause) {
     rows.value = []
     total.value = 0
@@ -342,10 +364,12 @@ async function openDetail(row: Record<string, unknown>) {
   try {
     if (definition.value?.detailOperationId) {
       const operation = getOperation(definition.value.detailOperationId)
-      if (operation)
+      if (operation) {
         detail.value = await executeOperation(definition.value.detailOperationId, {
           path: pathValues(operation, row),
         })
+        selected.value = { ...row, ...asRecord(detail.value) }
+      }
     }
     for (const child of definition.value?.childSections ?? []) {
       if (!auth.can(child.permission)) continue
@@ -594,7 +618,13 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
     formMode.value = 'action'
     let source: unknown = initialValue(operation.body)
     if (
-      ['UpdateGoodsReceiptLines', 'ApproveItemRequest'].includes(action.operationId) &&
+      [
+        'UpdateGoodsReceiptLines',
+        'ApproveItemRequest',
+        'ConfirmDeliveryOrderPicking',
+        'ConfirmDeliveryOrderPacking',
+        'ApproveComplaintReturn',
+      ].includes(action.operationId) &&
       row &&
       definition.value?.detailOperationId
     ) {
@@ -618,6 +648,41 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
                     asNumber(line.approved_qty) > 0
                       ? asNumber(line.approved_qty)
                       : asNumber(line.requested_qty),
+                }
+              }),
+            }
+          } else if (
+            ['ConfirmDeliveryOrderPicking', 'ConfirmDeliveryOrderPacking'].includes(
+              action.operationId,
+            )
+          ) {
+            const lines = Array.isArray(actionDetail.lines) ? actionDetail.lines : []
+            const packing = action.operationId === 'ConfirmDeliveryOrderPacking'
+            source = {
+              notes: '',
+              lines: lines.map((raw) => {
+                const line = asRecord(raw)
+                const requested =
+                  asNumber(line.qty) || asNumber(line.requested_qty) || asNumber(line.approved_qty)
+                const defaultQty = packing
+                  ? asNumber(line.packed_qty) || asNumber(line.picked_qty) || requested
+                  : asNumber(line.picked_qty) || requested
+                return {
+                  delivery_line_id: line.delivery_line_id,
+                  qty: defaultQty,
+                }
+              }),
+            }
+          } else if (action.operationId === 'ApproveComplaintReturn') {
+            const lines = Array.isArray(actionDetail.lines) ? actionDetail.lines : []
+            source = {
+              resolution_notes: actionDetail.resolution_notes ?? '',
+              lines: lines.map((raw) => {
+                const line = asRecord(raw)
+                return {
+                  complaint_line_id: line.complaint_line_id,
+                  approved_qty: asNumber(line.approved_qty) || asNumber(line.problem_qty) || 1,
+                  action_type: line.action_type || 'REPLACE',
                 }
               }),
             }
@@ -706,7 +771,10 @@ function asNumber(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
 }
-async function hydrateTransactionReference(kind: 'po' | 'request', value: unknown) {
+async function hydrateTransactionReference(
+  kind: 'po' | 'request' | 'usage-request',
+  value: unknown,
+) {
   if (formMode.value !== 'create' || value === '' || value === null || value === undefined) return
   const signature = `${definition.value?.key}:${kind}:${String(value)}`
   if (signature === lastHydratedReference.value) return
@@ -779,6 +847,47 @@ async function hydrateTransactionReference(kind: 'po' | 'request', value: unknow
       formHint.value = lines.length
         ? `${lines.length} baris permintaan dimuat otomatis. Pilih warehouse asal dan periksa quantity pengiriman.`
         : 'Permintaan ini tidak memiliki sisa quantity yang dapat dikirim.'
+    }
+    if (kind === 'usage-request' && definition.value?.key === 'item-usages') {
+      const request = asRecord(
+        await executeOperation('FindItemRequestByID', { path: { id: String(value) } }),
+      )
+      const lines = Array.isArray(request.lines)
+        ? request.lines
+            .map((raw) => {
+              const line = asRecord(raw)
+              const remaining =
+                asNumber(line.remaining_qty) ||
+                Math.max(
+                  0,
+                  asNumber(line.approved_qty) -
+                    Math.max(asNumber(line.received_qty), asNumber(line.shipped_qty)),
+                )
+              return {
+                request_line_id: line.request_line_id,
+                item_id: line.item_id,
+                part_id: line.part_id || undefined,
+                uom_id: line.uom_id,
+                lot_no: line.lot_no || undefined,
+                qty: remaining,
+                notes: '',
+              }
+            })
+            .filter((line) => asNumber(line.qty) > 0)
+        : []
+      formModel.value = {
+        ...formModel.value,
+        source_request_id: request.request_id ?? value,
+        issue_mode: 'REQUEST',
+        location_id: request.requester_location_id,
+        responsibility_type: 'LOCATION',
+        responsibility_location_id: request.requester_location_id,
+        reference_no: request.request_no,
+        lines,
+      }
+      formHint.value = lines.length
+        ? `${lines.length} baris permintaan dimuat otomatis. Pilih warehouse pengeluaran dan periksa jumlah sebelum menyimpan.`
+        : 'Permintaan ini tidak memiliki sisa quantity yang dapat dikeluarkan.'
     }
   } catch (cause) {
     formHint.value = errorMessage(
@@ -929,6 +1038,7 @@ function resetWorkbench(): void {
   pendingConfirmAction.value = null
   page.value = 1
   search.value = ''
+  lastAutoOpenedDocument = ''
   void load()
 }
 
@@ -954,6 +1064,13 @@ watch(
   (value) => {
     if (definition.value?.key === 'delivery-orders')
       void hydrateTransactionReference('request', value)
+  },
+)
+watch(
+  () => formModel.value.source_request_id,
+  (value) => {
+    if (definition.value?.key === 'item-usages' && formModel.value.issue_mode === 'REQUEST')
+      void hydrateTransactionReference('usage-request', value)
   },
 )
 </script>

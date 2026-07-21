@@ -4893,3 +4893,80 @@ html[data-theme='dark'] .resource-picker-field__clear {
   color: var(--aims-primary);
   background: var(--aims-primary-soft);
 }
+
+/* --------------------------------------------------------------------------
+   Business workflow additions: minimum stock workspace and direct assignment
+   -------------------------------------------------------------------------- */
+.workflow-view-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.workflow-view-tabs > button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--aims-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--aims-text);
+  background: var(--aims-card);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.workflow-view-tabs > button:hover,
+.workflow-view-tabs > button.active {
+  border-color: rgba(255, 0, 19, 0.4);
+  background: var(--aims-primary-soft);
+  box-shadow: 0 8px 24px rgba(23, 36, 49, 0.08);
+}
+.workflow-view-tabs > button > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.workflow-view-tabs strong {
+  font-size: 12px;
+}
+.workflow-view-tabs small {
+  color: var(--aims-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.minimum-stock-workspace > .page-stack {
+  margin-top: 0;
+}
+.direct-asset-assignment {
+  margin-top: 18px;
+  border-top: 1px solid var(--aims-border);
+  padding-top: 16px;
+}
+.direct-asset-assignment__toggle {
+  min-height: 44px;
+  border: 1px solid var(--aims-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--aims-card-soft);
+}
+.direct-asset-assignment__form {
+  margin-top: 12px;
+  border: 1px solid var(--aims-border);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--aims-card-soft);
+}
+html[data-theme='dark'] .workflow-view-tabs > button,
+html[data-theme='dark'] .direct-asset-assignment__toggle,
+html[data-theme='dark'] .direct-asset-assignment__form {
+  border-color: var(--aims-border);
+  background: #102433;
+}
+html[data-theme='dark'] .workflow-view-tabs > button:hover,
+html[data-theme='dark'] .workflow-view-tabs > button.active {
+  background: rgba(255, 0, 19, 0.1);
+}

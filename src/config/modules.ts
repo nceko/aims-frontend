@@ -579,22 +579,52 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     actions: [
       {
         operationId: 'ReviewComplaint',
-        label: 'Review',
+        label: 'Mulai Review',
         permission: 'transaction.complaints.update',
         statuses: ['OPEN'],
       },
       {
+        operationId: 'ApproveComplaintReturn',
+        label: 'Setujui Retur / Penggantian',
+        permission: 'transaction.complaints.update',
+        statuses: ['UNDER_REVIEW'],
+      },
+      {
         operationId: 'ResolveComplaint',
-        label: 'Resolve',
+        label: 'Selesaikan Tanpa Retur',
         permission: 'transaction.complaints.update',
         statuses: ['UNDER_REVIEW'],
       },
       {
         operationId: 'RejectComplaint',
-        label: 'Reject',
+        label: 'Tolak Komplain',
         permission: 'transaction.complaints.update',
         statuses: ['UNDER_REVIEW'],
         tone: 'danger',
+      },
+      {
+        operationId: 'RegisterComplaintReturn',
+        label: 'Catat Pengiriman Retur',
+        permission: 'transaction.complaints.update',
+        statuses: ['APPROVED_RETURN'],
+      },
+      {
+        operationId: 'StartComplaintReplacement',
+        label: 'Mulai Proses Penggantian',
+        permission: 'transaction.complaints.update',
+        statuses: ['APPROVED_RETURN'],
+      },
+      {
+        operationId: 'MarkComplaintReplacementShipped',
+        label: 'Tandai Pengganti Dikirim',
+        permission: 'transaction.complaints.update',
+        statuses: ['REPLACEMENT_PROCESS'],
+      },
+      {
+        operationId: 'ConfirmComplaintReplacement',
+        label: 'Konfirmasi Barang Pengganti',
+        permission: 'transaction.complaints.update',
+        statuses: ['REPLACEMENT_SHIPPED'],
       },
     ],
   }),
@@ -865,10 +895,23 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     attachmentEntityType: 'DELIVERY_ORDER',
     actions: [
       {
-        operationId: 'PrepareDeliveryOrder',
-        label: 'Prepare',
+        operationId: 'StartDeliveryOrderPicking',
+        label: 'Mulai Picking',
         permission: 'transaction.delivery_orders.update',
         statuses: ['DRAFT'],
+        confirm: 'Mulai proses picking untuk Surat Jalan ini?',
+      },
+      {
+        operationId: 'ConfirmDeliveryOrderPicking',
+        label: 'Konfirmasi Picking',
+        permission: 'transaction.delivery_orders.update',
+        statuses: ['PICKING'],
+      },
+      {
+        operationId: 'ConfirmDeliveryOrderPacking',
+        label: 'Konfirmasi Packing',
+        permission: 'transaction.delivery_orders.update',
+        statuses: ['PACKING'],
       },
       {
         operationId: 'PreviewDeliveryOrderScanOut',

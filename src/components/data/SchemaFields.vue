@@ -20,11 +20,33 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>] }>()
 const root = computed(() => props.rootModel ?? props.modelValue)
+const contextModel = computed(() => ({ ...root.value, ...props.modelValue }))
 const requiredFields = computed(() => new Set(props.schema.required ?? []))
+function fieldVisible(key: string): boolean {
+  const model = contextModel.value
+  const issueMode = String(model.issue_mode ?? '').toUpperCase()
+  if (key === 'source_request_id' && issueMode !== 'REQUEST') return false
+  if (key === 'request_line_id' && issueMode !== 'REQUEST') return false
+
+  const responsibilityType = String(model.responsibility_type ?? '').toUpperCase()
+  const responsibilityFields: Record<string, string> = {
+    responsibility_location_id: 'LOCATION',
+    responsibility_division_id: 'DIVISION',
+    responsibility_employee_id: 'EMPLOYEE',
+    responsibility_vehicle_id: 'VEHICLE',
+  }
+  if (responsibilityFields[key] && responsibilityType) {
+    return responsibilityFields[key] === responsibilityType
+  }
+  return true
+}
+
 const entries = computed(() =>
   Object.entries(props.schema.properties ?? {}).filter(
     ([key, schema]) =>
-      !schema.readOnly && !['created_at', 'updated_at', 'deleted_at'].includes(key),
+      !schema.readOnly &&
+      !['created_at', 'updated_at', 'deleted_at'].includes(key) &&
+      fieldVisible(key),
   ),
 )
 
@@ -97,7 +119,7 @@ function updatePrimitiveArray(key: string, event: Event) {
         <SchemaFields
           :schema="child"
           :model-value="(modelValue[name] as Record<string, unknown>) || {}"
-          :root-model="root"
+          :root-model="contextModel"
           :disabled="disabled"
           @update:model-value="update(name, $event)"
         />
@@ -128,7 +150,7 @@ function updatePrimitiveArray(key: string, event: Event) {
             <SchemaFields
               :schema="child.items"
               :model-value="(item as Record<string, unknown>) || {}"
-              :root-model="(item as Record<string, unknown>) || root"
+              :root-model="{ ...contextModel, ...((item as Record<string, unknown>) || {}) }"
               :disabled="disabled"
               @update:model-value="updateArrayItem(name, index, $event)"
             />
@@ -156,7 +178,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           v-if="hasResourcePicker(name)"
           :field-name="name"
           :model-value="modelValue[name]"
-          :root-model="root"
+          :root-model="contextModel"
           :source="fieldResourcePickers[name]!"
           :required="requiredFields.has(name)"
           :disabled="disabled"
@@ -167,7 +189,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           v-else-if="hasOptions(name, child)"
           :field-name="name"
           :model-value="modelValue[name]"
-          :root-model="root"
+          :root-model="contextModel"
           :multiple="child.type === 'array'"
           :required="requiredFields.has(name)"
           :disabled="disabled"

@@ -38,6 +38,12 @@ const router = createRouter({
           meta: { permission: 'transaction.goods_receipts.post_scanned_to_stock' },
         },
         {
+          path: 'inventory/minimum-low-stock',
+          name: 'inventory-minimum-low-stock',
+          component: () => import('@/modules/inventory/MinimumStockControlView.vue'),
+          meta: { permission: 'inventory.stock_thresholds.read' },
+        },
+        {
           path: 'inventory/direct-issues',
           name: 'inventory-direct-issues',
           component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),
@@ -48,7 +54,7 @@ const router = createRouter({
             pageDescription:
               'Catat ATK, tisu, consumable, dan barang habis pakai yang langsung diserahkan kepada pegawai, divisi, lokasi, atau kendaraan.',
             createLabel: 'Catat Pengambilan',
-            createDefaults: { usage_type: 'OPERATIONAL' },
+            createDefaults: { issue_mode: 'DIRECT', usage_type: 'OPERATIONAL' },
           },
         },
         {
@@ -118,78 +124,14 @@ const router = createRouter({
         {
           path: 'assets/direct-acquisitions',
           name: 'asset-direct-acquisitions',
-          component: () => import('@/modules/workflow/PlannedWorkflowView.vue'),
-          props: {
-            title: 'Aset Langsung',
-            description:
-              'Registrasi aset yang dikirim langsung ke lokasi atau tidak pernah disimpan sebagai persediaan warehouse.',
-            steps: [
-              'Pilih sumber perolehan aset',
-              'Isi item, serial, asset tag, harga, dan tanggal perolehan',
-              'Tentukan lokasi serta penanggung jawab awal',
-              'Upload invoice, garansi, foto, atau dokumen pendukung',
-              'Generate QR dan aktifkan aset',
-            ],
-            fields: [
-              'Sumber perolehan',
-              'Item / jenis aset',
-              'Serial number',
-              'Asset tag',
-              'Harga perolehan',
-              'Tanggal perolehan',
-              'Supplier / invoice',
-              'Lokasi fisik',
-              'Penanggung jawab',
-              'Garansi dan lampiran',
-            ],
-            backendNeeds: [
-              'Endpoint create direct asset acquisition',
-              'Transaksi atomik item unit + asset profile + initial assignment',
-              'Generate QR/asset tag tanpa menambah stock balance warehouse',
-              'Attachment, audit log, dan validasi duplikasi serial',
-            ],
-            relatedRoute: '/assets/register',
-            relatedLabel: 'Buka Register Aset',
-          },
-          meta: { permission: 'inventory.assets.read' },
+          component: () => import('@/modules/assets/DirectAssetAcquisitionView.vue'),
+          meta: { permission: 'inventory.asset_direct_acquisitions.read' },
         },
         {
           path: 'assets/migrations',
           name: 'asset-migrations',
-          component: () => import('@/modules/workflow/PlannedWorkflowView.vue'),
-          props: {
-            title: 'Migrasi / Aset Existing',
-            description:
-              'Masukkan aset lama yang sudah dimiliki perusahaan tanpa membuat penerimaan barang baru.',
-            steps: [
-              'Siapkan template data aset existing',
-              'Validasi asset tag, serial, lokasi, dan penanggung jawab',
-              'Import data dan tampilkan hasil validasi',
-              'Perbaiki data gagal sebelum commit',
-              'Generate QR dan tetapkan saldo awal nilai aset',
-            ],
-            fields: [
-              'Nomor aset lama',
-              'Item / kategori',
-              'Serial number',
-              'Tanggal perolehan',
-              'Nilai perolehan',
-              'Akumulasi penyusutan awal',
-              'Kondisi',
-              'Lokasi sekarang',
-              'Penanggung jawab sekarang',
-              'Dokumen sumber',
-            ],
-            backendNeeds: [
-              'Endpoint import preview dan commit aset existing',
-              'Validasi duplikasi asset tag dan serial number',
-              'Pembuatan item unit, asset profile, dan assignment awal',
-              'Pencatatan opening balance penyusutan dan audit import',
-            ],
-            relatedRoute: '/assets/register',
-            relatedLabel: 'Buka Register Aset',
-          },
-          meta: { permission: 'inventory.assets.read' },
+          component: () => import('@/modules/assets/AssetMigrationView.vue'),
+          meta: { permission: 'inventory.asset_migrations.read' },
         },
         ...resourceRoutes,
         {
@@ -198,6 +140,7 @@ const router = createRouter({
           component: () => import('@/modules/approvals/ApprovalsView.vue'),
           meta: {
             permissionAny: [
+              'approvals.inbox.read',
               'dashboard.read',
               'transaction.purchase_orders.update',
               'transaction.item_requests.approve',
@@ -221,6 +164,8 @@ const router = createRouter({
               'reports.asset_valuation.read',
               'reports.responsibilities.read',
               'reports.asset_maintenances.read',
+              'reports.procurement.read',
+              'reports.audit.read',
               'inventory.asset_depreciation.read',
             ],
           },
