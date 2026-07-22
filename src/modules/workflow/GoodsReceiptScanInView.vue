@@ -22,7 +22,10 @@ import GoodsReceiptQrModal, {
   type GoodsReceiptQrLabel,
 } from '@/components/data/GoodsReceiptQrModal.vue'
 import { executeOperation } from '@/services/api-operations'
+import { useAuthStore } from '@/modules/auth/auth.store'
 import { errorMessage } from '@/utils/api'
+
+const auth = useAuthStore()
 
 interface ReceiptLine {
   receipt_line_id: string | number
@@ -193,6 +196,7 @@ const qtyComplete = computed(() =>
 )
 const canPost = computed(
   () =>
+    auth.can('transaction.goods_receipts.post_scanned_to_stock') &&
     receipt.value?.status === 'CHECKED' &&
     serialComplete.value &&
     qtyComplete.value &&
@@ -533,7 +537,7 @@ onBeforeUnmount(stopCamera)
   <div class="page-stack goods-receipt-scan-page">
     <PageHeader
       title="Scan Masuk"
-      description="Pindai seluruh QR item SERIAL, konfirmasi jumlah item QTY/LOT, lalu post satu kali ke stok."
+      description="Pindai seluruh QR barang SERIAL, konfirmasi jumlah barang QTY/LOT, lalu posting satu kali ke stok."
     >
       <template #actions>
         <AppButton variant="ghost" @click="router.push('/procurement/goods-receipts')">
@@ -559,19 +563,19 @@ onBeforeUnmount(stopCamera)
       <AppCard class="receipt-scan-document-card">
         <div class="receipt-scan-document">
           <div>
-            <span>Goods Receipt</span>
+            <span>Penerimaan Barang</span>
             <strong>{{ receipt.receipt_no || '-' }}</strong>
           </div>
           <div>
-            <span>Purchase Order</span>
+            <span>Pesanan Pembelian</span>
             <strong>{{ receipt.po_no || '-' }}</strong>
           </div>
           <div>
-            <span>Supplier</span>
+            <span>Pemasok</span>
             <strong>{{ receipt.supplier_name || '-' }}</strong>
           </div>
           <div>
-            <span>Warehouse Tujuan</span>
+            <span>Gudang Tujuan</span>
             <strong>{{ receipt.warehouse_name || '-' }}</strong>
           </div>
           <div>
@@ -580,13 +584,13 @@ onBeforeUnmount(stopCamera)
           </div>
           <div class="receipt-scan-document__qr-actions">
             <AppButton
-              v-if="serialLines.length"
+              v-if="serialLines.length && auth.can('transaction.goods_receipts.generate_qr')"
               variant="secondary"
               :loading="generatingQr"
               :disabled="receipt.status !== 'CHECKED'"
               @click="generateQr"
             >
-              <QrCode :size="16" /> Generate & Cetak QR
+              <QrCode :size="16" /> Buat & Cetak QR
             </AppButton>
             <AppButton
               v-if="serialLines.length"
@@ -659,7 +663,7 @@ onBeforeUnmount(stopCamera)
         >
           <div class="scan-summary-grid">
             <div>
-              <span>Progress</span>
+              <span>Kemajuan</span>
               <strong>{{ completionPercent }}%</strong>
             </div>
             <div>
@@ -674,11 +678,11 @@ onBeforeUnmount(stopCamera)
               >
             </div>
             <div>
-              <span>Total line</span>
+              <span>Total baris</span>
               <strong>{{ lines.length }}</strong>
             </div>
           </div>
-          <div class="scan-progress-track" aria-label="Progress scan">
+          <div class="scan-progress-track" aria-label="Kemajuan pemindaian">
             <span :style="{ width: `${completionPercent}%` }"></span>
           </div>
 
@@ -688,7 +692,7 @@ onBeforeUnmount(stopCamera)
               <strong>{{ canPost ? 'Siap diposting ke stok' : 'Validasi belum lengkap' }}</strong>
               <span v-if="!serialComplete">Lengkapi seluruh QR item SERIAL.</span>
               <span v-else-if="!qtyComplete"
-                >Konfirmasi quantity item QTY/LOT sesuai accepted quantity.</span
+                >Konfirmasi jumlah barang QTY/LOT sesuai jumlah yang diterima.</span
               >
               <span v-else>Semua item sudah sesuai dengan penerimaan.</span>
             </div>
@@ -699,17 +703,17 @@ onBeforeUnmount(stopCamera)
       <AppCard
         v-if="qtyLines.length"
         title="Konfirmasi item QTY / LOT"
-        subtitle="Masukkan jumlah fisik yang sudah dihitung. Nilainya harus sama dengan accepted quantity sebelum posting."
+        subtitle="Masukkan jumlah fisik yang sudah dihitung. Nilainya harus sama dengan jumlah diterima sebelum posting."
         flush
       >
         <div class="scan-table-scroll">
           <table class="scan-workspace-table">
             <thead>
               <tr>
-                <th>Item</th>
-                <th>Tracking</th>
+                <th>Barang</th>
+                <th>Pelacakan</th>
                 <th>Lot</th>
-                <th>Accepted Qty</th>
+                <th>Jumlah Diterima</th>
                 <th>Qty Terverifikasi</th>
                 <th>Status</th>
               </tr>
@@ -740,7 +744,7 @@ onBeforeUnmount(stopCamera)
                       :disabled="Boolean(postedResult)"
                       @click="fillAcceptedQty(line)"
                     >
-                      Gunakan accepted
+                      Gunakan jumlah diterima
                     </button>
                   </div>
                 </td>
@@ -772,9 +776,9 @@ onBeforeUnmount(stopCamera)
               <tr>
                 <th>No.</th>
                 <th>Nilai QR</th>
-                <th>Item</th>
-                <th>Part Number</th>
-                <th>Waktu Scan</th>
+                <th>Barang</th>
+                <th>Nomor Part</th>
+                <th>Waktu Pindai</th>
                 <th>Status</th>
                 <th></th>
               </tr>

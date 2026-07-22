@@ -17,7 +17,7 @@ const tabs = computed(() =>
     },
     {
       key: 'low-stock' as const,
-      label: 'Item Low Stock',
+      label: 'Barang Stok Rendah',
       description: 'Pantau item yang sudah berada di bawah batas minimum.',
       icon: AlertTriangle,
       permission: 'inventory.stock_thresholds.read',

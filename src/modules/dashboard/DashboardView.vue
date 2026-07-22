@@ -34,8 +34,8 @@ const pendingTotal = computed<number>(() =>
   Object.values(pending.value).reduce<number>((total, value) => total + number(value), 0),
 )
 const cards = computed<Array<{ label: string; value: number; icon: unknown; tone: string }>>(() => [
-  { label: 'Total Item', value: number(summary.value.total_items), icon: Boxes, tone: 'primary' },
-  { label: 'Total Asset', value: number(assets.value.total_assets), icon: Wrench, tone: 'success' },
+  { label: 'Total Barang', value: number(summary.value.total_items), icon: Boxes, tone: 'primary' },
+  { label: 'Total Aset', value: number(assets.value.total_assets), icon: Wrench, tone: 'success' },
   {
     label: 'Stok Tersedia',
     value: number(summary.value.total_stock_qty),
@@ -43,12 +43,12 @@ const cards = computed<Array<{ label: string; value: number; icon: unknown; tone
     tone: 'info',
   },
   {
-    label: 'Low Stock',
+    label: 'Stok Rendah',
     value: number(summary.value.low_stock_count),
     icon: AlertTriangle,
     tone: 'warning',
   },
-  { label: 'Pending Action', value: pendingTotal.value, icon: ClipboardClock, tone: 'danger' },
+  { label: 'Tindakan Tertunda', value: pendingTotal.value, icon: ClipboardClock, tone: 'danger' },
   {
     label: 'Dalam Perjalanan',
     value: number(summary.value.in_transit_count),
@@ -91,12 +91,12 @@ onMounted(load)
 <template>
   <div class="page-stack">
     <PageHeader
-      title="Dashboard"
-      :description="`Selamat datang, ${auth.displayName}. Pantau operasional AIMS pada context aktif.`"
+      title="Dasbor"
+      :description="`Selamat datang, ${auth.displayName}. Pantau operasional AIMS pada konteks aktif.`"
     >
       <template #actions>
         <AppButton variant="ghost" :loading="loading" @click="load">
-          <RefreshCw :size="17" /> Refresh
+          <RefreshCw :size="17" /> Muat Ulang
         </AppButton>
       </template>
     </PageHeader>
@@ -120,7 +120,7 @@ onMounted(load)
     </section>
 
     <div class="dashboard-grid">
-      <AppCard title="Akses cepat" subtitle="Modul sesuai permission Anda.">
+      <AppCard title="Akses cepat" subtitle="Modul sesuai izin Anda.">
         <div class="quick-grid">
           <RouterLink
             v-for="item in visibleHighlights"
@@ -132,20 +132,23 @@ onMounted(load)
           </RouterLink>
         </div>
       </AppCard>
-      <AppCard title="Pending actions" subtitle="Transaksi yang membutuhkan tindak lanjut.">
+      <AppCard title="Tindakan tertunda" subtitle="Transaksi yang membutuhkan tindak lanjut.">
         <StructuredData v-if="Object.keys(pending).length" :value="pending" />
-        <EmptyState v-else title="Tidak ada pending action" />
+        <EmptyState v-else title="Tidak ada tindakan tertunda" />
       </AppCard>
     </div>
 
     <div class="dashboard-grid">
-      <AppCard title="Stock per Location" subtitle="Qty on hand dan available pada scope location.">
+      <AppCard
+        title="Stok per Lokasi"
+        subtitle="Jumlah fisik dan tersedia pada cakupan lokasi aktif."
+      >
         <StructuredData v-if="locations.length" :value="locations" />
         <EmptyState v-else title="Data stock lokasi belum tersedia" />
       </AppCard>
-      <AppCard title="Movement 30 Hari" subtitle="Ringkasan pergerakan inventory.">
+      <AppCard title="Pergerakan 30 Hari" subtitle="Ringkasan pergerakan persediaan.">
         <StructuredData v-if="trend.length" :value="trend.slice(-12)" />
-        <EmptyState v-else title="Belum ada movement"><Activity :size="20" /></EmptyState>
+        <EmptyState v-else title="Belum ada pergerakan"><Activity :size="20" /></EmptyState>
       </AppCard>
     </div>
   </div>

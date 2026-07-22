@@ -15,8 +15,10 @@ const props = withDefaults(
     modelValue: Record<string, unknown>
     rootModel?: Record<string, unknown>
     disabled?: boolean
+    fieldOrder?: string[]
+    disabledFields?: string[]
   }>(),
-  { rootModel: undefined, disabled: false },
+  { rootModel: undefined, disabled: false, fieldOrder: () => [], disabledFields: () => [] },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>] }>()
 const root = computed(() => props.rootModel ?? props.modelValue)
@@ -41,14 +43,25 @@ function fieldVisible(key: string): boolean {
   return true
 }
 
-const entries = computed(() =>
-  Object.entries(props.schema.properties ?? {}).filter(
-    ([key, schema]) =>
-      !schema.readOnly &&
-      !['created_at', 'updated_at', 'deleted_at'].includes(key) &&
-      fieldVisible(key),
-  ),
-)
+const entries = computed(() => {
+  const order = new Map(props.fieldOrder.map((field, index) => [field, index]))
+  return Object.entries(props.schema.properties ?? {})
+    .filter(
+      ([key, schema]) =>
+        !schema.readOnly &&
+        !['created_at', 'updated_at', 'deleted_at'].includes(key) &&
+        fieldVisible(key),
+    )
+    .sort(([left], [right]) => {
+      const leftIndex = order.get(left) ?? Number.MAX_SAFE_INTEGER
+      const rightIndex = order.get(right) ?? Number.MAX_SAFE_INTEGER
+      return leftIndex - rightIndex
+    })
+})
+
+function fieldDisabled(name: string): boolean {
+  return props.disabled || props.disabledFields.includes(name)
+}
 
 function update(key: string, value: unknown) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
@@ -120,7 +133,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           :schema="child"
           :model-value="(modelValue[name] as Record<string, unknown>) || {}"
           :root-model="contextModel"
-          :disabled="disabled"
+          :disabled="fieldDisabled(name)"
           @update:model-value="update(name, $event)"
         />
       </fieldset>
@@ -181,7 +194,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           :root-model="contextModel"
           :source="fieldResourcePickers[name]!"
           :required="requiredFields.has(name)"
-          :disabled="disabled"
+          :disabled="fieldDisabled(name)"
           @update:model-value="update(name, $event)"
           @select="applyResourceSelection(name, $event)"
         />
@@ -192,7 +205,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           :root-model="contextModel"
           :multiple="child.type === 'array'"
           :required="requiredFields.has(name)"
-          :disabled="disabled"
+          :disabled="fieldDisabled(name)"
           :enum-values="child.enum"
           @update:model-value="update(name, $event)"
         />
@@ -200,7 +213,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           <input
             type="checkbox"
             :checked="Boolean(modelValue[name])"
-            :disabled="disabled"
+            :disabled="fieldDisabled(name)"
             @change="update(name, ($event.target as HTMLInputElement).checked)"
           />
           <span>{{ Boolean(modelValue[name]) ? 'Ya' : 'Tidak' }}</span>
@@ -210,7 +223,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           class="field__control field__textarea"
           :value="String(modelValue[name] ?? '')"
           :required="requiredFields.has(name)"
-          :disabled="disabled"
+          :disabled="fieldDisabled(name)"
           rows="3"
           @input="update(name, ($event.target as HTMLTextAreaElement).value)"
         ></textarea>
@@ -218,10 +231,12 @@ function updatePrimitiveArray(key: string, event: Event) {
           v-else-if="child.type !== 'array'"
           class="field__control"
           :type="inputType(child, name)"
-          :step="child.type === 'number' ? 'any' : undefined"
+          :step="child.type === 'number' ? 'any' : child.type === 'integer' ? '1' : undefined"
+          :min="child.minimum"
+          :max="child.maximum"
           :value="String(modelValue[name] ?? '')"
           :required="requiredFields.has(name)"
-          :disabled="disabled"
+          :disabled="fieldDisabled(name)"
           @input="update(name, ($event.target as HTMLInputElement).value)"
         />
         <input
@@ -230,7 +245,7 @@ function updatePrimitiveArray(key: string, event: Event) {
           type="text"
           :value="primitiveArrayValue(modelValue[name])"
           :required="requiredFields.has(name)"
-          :disabled="disabled"
+          :disabled="fieldDisabled(name)"
           placeholder="Pisahkan dengan koma"
           @input="updatePrimitiveArray(name, $event)"
         />

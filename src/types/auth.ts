@@ -35,10 +35,12 @@ export interface UserProfile {
   location_type_code?: string
   is_central_location?: boolean
   is_global_super_admin?: boolean
+  scope_mode?: 'GLOBAL' | 'COMPANY' | 'LOCATION_TREE'
   has_context?: boolean
 }
 
 export interface ContextSwitchRequest {
+  company_id?: number
   location_id: number
   category_group_id: number
   current_refresh_token?: string

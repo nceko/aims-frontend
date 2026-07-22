@@ -52,7 +52,12 @@ export interface ResourceActionDefinition {
   pathValueKey?: string
   opensDetail?: boolean
   openHtmlPath?: string
-  handler?: 'generate-qr-labels' | 'qr-labels' | 'goods-receipt-scan-in'
+  handler?:
+    | 'generate-qr-labels'
+    | 'qr-labels'
+    | 'goods-receipt-scan-in'
+    | 'delivery-order-scan-out'
+    | 'delivery-order-scan-in'
 }
 
 export interface ResourceModuleDefinition {

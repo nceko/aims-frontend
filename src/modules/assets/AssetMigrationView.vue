@@ -67,9 +67,9 @@ const rowColumns: DataTableColumn[] = [
   { key: 'row_no', label: 'Baris', width: '80px', sortable: true },
   { key: 'item_id', label: 'Item ID', sortable: true },
   { key: 'item_name', label: 'Item', sortable: true },
-  { key: 'serial_no', label: 'Serial Number', sortable: true },
-  { key: 'asset_tag', label: 'Asset Tag', sortable: true },
-  { key: 'location_id', label: 'Location ID', sortable: true },
+  { key: 'serial_no', label: 'Nomor Seri', sortable: true },
+  { key: 'asset_tag', label: 'Label Aset', sortable: true },
+  { key: 'location_id', label: 'ID Lokasi', sortable: true },
   { key: 'validation_status', label: 'Validasi', sortable: true },
   { key: 'validation_errors', label: 'Error' },
   { key: 'unit_id', label: 'Unit ID', sortable: true },
@@ -307,7 +307,7 @@ onMounted(loadBatches)
 <template>
   <div class="page-stack">
     <PageHeader
-      title="Migrasi / Aset Existing"
+      title="Migrasi / Aset Lama"
       description="Preview, validasi, dan commit aset lama tanpa membuat Goods Receipt baru."
     >
       <template #actions>
@@ -315,7 +315,7 @@ onMounted(loadBatches)
           <Download :size="17" /> Template CSV
         </AppButton>
         <AppButton variant="ghost" :loading="loading" @click="loadBatches">
-          <RefreshCw :size="17" /> Refresh
+          <RefreshCw :size="17" /> Muat Ulang
         </AppButton>
       </template>
     </PageHeader>

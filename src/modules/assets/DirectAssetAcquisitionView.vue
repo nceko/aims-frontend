@@ -44,8 +44,8 @@ const columns: DataTableColumn[] = [
   { key: 'acquisition_no', label: 'Nomor Perolehan', sortable: true },
   { key: 'item_code', label: 'Kode Item', sortable: true },
   { key: 'item_name', label: 'Item', sortable: true },
-  { key: 'serial_no', label: 'Serial Number', sortable: true },
-  { key: 'asset_tag', label: 'Asset Tag', sortable: true },
+  { key: 'serial_no', label: 'Nomor Seri', sortable: true },
+  { key: 'asset_tag', label: 'Label Aset', sortable: true },
   { key: 'location_name', label: 'Lokasi', sortable: true },
   { key: 'acquisition_type', label: 'Sumber', sortable: true },
   { key: 'status', label: 'Status', sortable: true, width: '130px' },
@@ -189,7 +189,7 @@ onMounted(load)
     >
       <template #actions>
         <AppButton variant="ghost" :loading="loading" @click="load">
-          <RefreshCw :size="17" /> Refresh
+          <RefreshCw :size="17" /> Muat Ulang
         </AppButton>
         <AppButton @click="openCreate"><Plus :size="17" /> Tambah Aset Langsung</AppButton>
       </template>

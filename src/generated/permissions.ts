@@ -816,6 +816,260 @@ export const permissionDefinitions: PermissionDefinition[] = [
     name: 'Read Approval Inbox',
     description: 'Melihat daftar dokumen lintas modul yang menunggu persetujuan atau tindakan.',
   },
+  {
+    code: 'inventory.asset_disposals.reject',
+    name: 'Reject',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.asset_losses.reject',
+    name: 'Reject',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.asset_maintenances.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.asset_maintenances.complete',
+    name: 'Complete',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.asset_maintenances.start',
+    name: 'Start',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.stock_adjustments.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.stock_adjustments.post',
+    name: 'Post',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.stock_adjustments.reverse',
+    name: 'Reverse',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.stock_opnames.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  { code: 'inventory.stock_opnames.post', name: 'Post', description: 'Izin aksi granular Fase 4.' },
+  {
+    code: 'inventory.stock_opnames.reverse',
+    name: 'Reverse',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'inventory.stock_opnames.review',
+    name: 'Review',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  { code: 'inventory.stock_opnames.scan', name: 'Scan', description: 'Izin aksi granular Fase 4.' },
+  {
+    code: 'inventory.stock_opnames.start',
+    name: 'Start',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.approve_return',
+    name: 'Approve Return',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.confirm_replacement',
+    name: 'Confirm Replacement',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.mark_replacement_shipped',
+    name: 'Mark Replacement Shipped',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.register_return',
+    name: 'Register Return',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.reject',
+    name: 'Reject',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.resolve',
+    name: 'Resolve',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.review',
+    name: 'Review',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.complaints.start_replacement',
+    name: 'Start Replacement',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.confirm_packing',
+    name: 'Confirm Packing',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.confirm_picking',
+    name: 'Confirm Picking',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.prepare',
+    name: 'Prepare',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.receive',
+    name: 'Receive',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.reverse',
+    name: 'Reverse',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.scan_out',
+    name: 'Scan Out',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.delivery_orders.start_picking',
+    name: 'Start Picking',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.goods_receipts.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.goods_receipts.check',
+    name: 'Check',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.goods_receipts.scan',
+    name: 'Scan',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_requests.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_requests.check_stock',
+    name: 'Check Stock',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_requests.complete',
+    name: 'Complete',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_requests.mark_waiting_purchase',
+    name: 'Mark Waiting Purchase',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_requests.reject',
+    name: 'Reject',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_requests.submit',
+    name: 'Submit',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.item_usages.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  { code: 'transaction.item_usages.post', name: 'Post', description: 'Izin aksi granular Fase 4.' },
+  {
+    code: 'transaction.item_usages.reverse',
+    name: 'Reverse',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  { code: 'transaction.item_usages.scan', name: 'Scan', description: 'Izin aksi granular Fase 4.' },
+  {
+    code: 'transaction.landed_costs.calculate',
+    name: 'Calculate',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.landed_costs.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.landed_costs.reject',
+    name: 'Reject',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.landed_costs.submit',
+    name: 'Submit',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.approve',
+    name: 'Approve',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.cancel',
+    name: 'Cancel',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.close',
+    name: 'Close',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.mark_indent',
+    name: 'Mark Indent',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.mark_ready',
+    name: 'Mark Ready',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.mark_vendor_processing',
+    name: 'Mark Vendor Processing',
+    description: 'Izin aksi granular Fase 4.',
+  },
+  {
+    code: 'transaction.purchase_orders.reject',
+    name: 'Reject',
+    description: 'Izin aksi granular Fase 4.',
+  },
 ]
 
 export const permissionCodes = new Set(permissionDefinitions.map((item) => item.code))

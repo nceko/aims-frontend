@@ -179,7 +179,7 @@ watch(
     </nav>
 
     <div class="app-sidebar__footer">
-      <span>Warehouse aktif</span>
+      <span>Gudang aktif</span>
       <strong>{{ auth.user?.company_name || 'Belum tersedia' }}</strong>
       <small
         >{{ auth.user?.location_name || '-' }} · {{ auth.user?.category_group_name || '-' }}</small

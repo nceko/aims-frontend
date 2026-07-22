@@ -33,7 +33,7 @@ const cards = computed(() => [
     tone: 'info',
   },
   {
-    label: 'Maintenance',
+    label: 'Perawatan',
     value: number(summary.value.maintenance_assets),
     icon: Wrench,
     tone: 'warning',
@@ -45,7 +45,7 @@ const cards = computed(() => [
     tone: 'danger',
   },
   {
-    label: 'Disposed',
+    label: 'Dilepas',
     value: number(summary.value.disposed_assets),
     icon: Boxes,
     tone: 'secondary',
@@ -76,7 +76,7 @@ onMounted(load)
     >
       <template #actions>
         <AppButton variant="ghost" :loading="loading" @click="load">
-          <RefreshCw :size="17" /> Refresh
+          <RefreshCw :size="17" /> Muat Ulang
         </AppButton>
       </template>
     </PageHeader>
@@ -108,7 +108,7 @@ onMounted(load)
           </RouterLink>
           <RouterLink class="workflow-link" to="/assets/from-warehouse">
             <strong>Aset dari Gudang</strong>
-            <span>Lengkapi profil unit serial yang sudah masuk stok.</span>
+            <span>Lengkapi profil unit bernomor seri yang sudah masuk stok.</span>
           </RouterLink>
           <RouterLink class="workflow-link" to="/assets/direct-acquisitions">
             <strong>Aset Langsung</strong>
@@ -124,8 +124,8 @@ onMounted(load)
       <AppCard title="Operasional Aset" subtitle="Akses tindakan berdasarkan lifecycle aset.">
         <div class="workflow-link-grid">
           <RouterLink class="workflow-link" to="/assets/assignments">
-            <strong>Assignment Aktif</strong>
-            <span>Assign aset kepada pegawai, divisi, lokasi, atau kendaraan.</span>
+            <strong>Penugasan Aktif</strong>
+            <span>Tugaskan aset kepada pegawai, divisi, lokasi, atau kendaraan.</span>
           </RouterLink>
           <RouterLink class="workflow-link" to="/assets/returns">
             <strong>Pengembalian</strong>
@@ -136,8 +136,8 @@ onMounted(load)
             <span>Pindahkan tanggung jawab tanpa mengubah stok warehouse.</span>
           </RouterLink>
           <RouterLink class="workflow-link" to="/assets/maintenances">
-            <strong>Maintenance Aset</strong>
-            <span>Kelola perbaikan dan riwayat maintenance.</span>
+            <strong>Perawatan Aset</strong>
+            <span>Kelola perbaikan dan riwayat perawatan.</span>
           </RouterLink>
         </div>
       </AppCard>

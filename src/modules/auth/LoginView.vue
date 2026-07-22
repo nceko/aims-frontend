@@ -115,7 +115,7 @@ async function submitContext(event: SubmitEvent) {
     !Number.isFinite(categoryGroupId) ||
     categoryGroupId <= 0
   ) {
-    error.value = 'Location dan category group wajib dipilih.'
+    error.value = 'Lokasi dan kelompok kategori wajib dipilih.'
     return
   }
 
@@ -164,7 +164,7 @@ async function submitContext(event: SubmitEvent) {
           {{
             stage === 'credentials'
               ? 'Gunakan akun yang telah diberikan oleh administrator.'
-              : 'Pilih Category Group dan location yang akan digunakan.'
+              : 'Pilih kelompok kategori dan lokasi yang akan digunakan.'
           }}
         </p>
 
@@ -217,14 +217,14 @@ async function submitContext(event: SubmitEvent) {
           <AppSelect
             v-model="form.categoryGroupId"
             name="category_group_id"
-            label="Category Group"
+            label="Kelompok Kategori"
             :options="categoryOptions"
             required
           />
           <AppSelect
             v-model="form.locationId"
             name="location_id"
-            label="Location"
+            label="Lokasi"
             :options="locationOptions"
             required
           />

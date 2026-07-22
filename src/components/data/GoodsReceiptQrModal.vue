@@ -240,13 +240,13 @@ watch(
   >
     <div class="qr-print-summary">
       <div>
-        <span>Receipt</span><strong>{{ receiptNo }}</strong>
+        <span>Penerimaan</span><strong>{{ receiptNo }}</strong>
       </div>
       <div>
-        <span>Supplier</span><strong>{{ supplierName }}</strong>
+        <span>Pemasok</span><strong>{{ supplierName }}</strong>
       </div>
       <div>
-        <span>Warehouse</span><strong>{{ warehouseName }}</strong>
+        <span>Gudang</span><strong>{{ warehouseName }}</strong>
       </div>
       <div>
         <span>Jumlah label</span><strong>{{ codes.length }}</strong>
@@ -291,7 +291,7 @@ watch(
     <div v-else class="empty-state compact-empty">
       <QrCode :size="42" />
       <h3>Belum ada QR untuk dicetak</h3>
-      <p>Pastikan item bertipe SERIAL dan accepted quantity lebih dari nol.</p>
+      <p>Pastikan barang bertipe SERIAL dan jumlah diterima lebih dari nol.</p>
     </div>
 
     <template #footer>

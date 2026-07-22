@@ -31,13 +31,13 @@ export interface NavItem {
 }
 
 export const navigation: NavItem[] = [
-  { label: 'Dashboard', to: '/', icon: Gauge, permission: 'dashboard.read' },
+  { label: 'Dasbor', to: '/', icon: Gauge, permission: 'dashboard.read' },
   {
     label: 'Organisasi',
     icon: Building2,
     children: [
       {
-        label: 'Company',
+        label: 'Perusahaan',
         to: '/organization/companies',
         permission: 'organization.companies.read',
       },
@@ -52,7 +52,7 @@ export const navigation: NavItem[] = [
         permission: 'organization.locations.read',
       },
       {
-        label: 'Warehouse',
+        label: 'Gudang',
         to: '/organization/warehouses',
         permission: 'warehouse.warehouses.read',
       },
@@ -83,15 +83,15 @@ export const navigation: NavItem[] = [
     icon: Boxes,
     children: [
       {
-        label: 'Category Group',
+        label: 'Kelompok Kategori',
         to: '/catalog/category-groups',
         permission: 'catalog.category_groups.read',
       },
-      { label: 'Category', to: '/catalog/categories', permission: 'catalog.categories.read' },
+      { label: 'Kategori', to: '/catalog/categories', permission: 'catalog.categories.read' },
       { label: 'UOM', to: '/catalog/uoms', permission: 'catalog.uoms.read' },
-      { label: 'Brand', to: '/catalog/brands', permission: 'catalog.brands.read' },
+      { label: 'Merek', to: '/catalog/brands', permission: 'catalog.brands.read' },
       {
-        label: 'Item',
+        label: 'Barang',
         permissionAny: [
           'catalog.items.read',
           'catalog.item_part_numbers.read',
@@ -99,14 +99,14 @@ export const navigation: NavItem[] = [
           'catalog.item_uom_conversions.read',
         ],
         children: [
-          { label: 'Master Item', to: '/catalog/items', permission: 'catalog.items.read' },
+          { label: 'Master Barang', to: '/catalog/items', permission: 'catalog.items.read' },
           {
             label: 'Part Number',
             to: '/catalog/item-part-numbers',
             permission: 'catalog.item_part_numbers.read',
           },
           {
-            label: 'Supplier Item',
+            label: 'Barang Pemasok',
             to: '/catalog/item-suppliers',
             permission: 'catalog.item_suppliers.read',
           },
@@ -117,7 +117,7 @@ export const navigation: NavItem[] = [
           },
         ],
       },
-      { label: 'Supplier', to: '/catalog/suppliers', permission: 'catalog.suppliers.read' },
+      { label: 'Pemasok', to: '/catalog/suppliers', permission: 'catalog.suppliers.read' },
       {
         label: 'Harga Pembelian',
         to: '/catalog/purchase-prices',
@@ -130,7 +130,7 @@ export const navigation: NavItem[] = [
     icon: ShoppingCart,
     children: [
       {
-        label: 'Purchase Order',
+        label: 'Pesanan Pembelian',
         to: '/procurement/purchase-orders',
         permission: 'transaction.purchase_orders.read',
       },
@@ -140,7 +140,7 @@ export const navigation: NavItem[] = [
         permission: 'transaction.goods_receipts.read',
       },
       {
-        label: 'Landed Cost',
+        label: 'Biaya Perolehan',
         to: '/procurement/landed-costs',
         permission: 'transaction.landed_costs.read',
       },
@@ -152,7 +152,7 @@ export const navigation: NavItem[] = [
     ],
   },
   {
-    label: 'Inventory',
+    label: 'Persediaan',
     icon: Warehouse,
     children: [
       {
@@ -172,7 +172,7 @@ export const navigation: NavItem[] = [
             permission: 'inventory.item_units.read',
           },
           {
-            label: 'Minimum & Low Stock',
+            label: 'Stok Minimum & Stok Rendah',
             to: '/inventory/minimum-low-stock',
             permission: 'inventory.stock_thresholds.read',
           },
@@ -229,12 +229,12 @@ export const navigation: NavItem[] = [
         ],
         children: [
           {
-            label: 'Stock Adjustment',
+            label: 'Penyesuaian Stok',
             to: '/inventory/stock-adjustments',
             permission: 'inventory.stock_adjustments.read',
           },
           {
-            label: 'Stock Opname',
+            label: 'Stok Opname',
             to: '/inventory/stock-opnames',
             permission: 'inventory.stock_opnames.read',
           },
@@ -277,7 +277,7 @@ export const navigation: NavItem[] = [
             permission: 'inventory.asset_direct_acquisitions.read',
           },
           {
-            label: 'Migrasi / Aset Existing',
+            label: 'Migrasi / Aset Lama',
             to: '/assets/migrations',
             permission: 'inventory.asset_migrations.read',
           },
@@ -293,7 +293,7 @@ export const navigation: NavItem[] = [
         ],
         children: [
           {
-            label: 'Assignment Aktif',
+            label: 'Penugasan Aktif',
             to: '/assets/assignments',
             permission: 'inventory.asset_assignments.read',
           },
@@ -310,7 +310,7 @@ export const navigation: NavItem[] = [
         ],
       },
       {
-        label: 'Maintenance Aset',
+        label: 'Perawatan Aset',
         to: '/assets/maintenances',
         permission: 'inventory.asset_maintenances.read',
       },
@@ -337,23 +337,24 @@ export const navigation: NavItem[] = [
     ],
   },
   {
-    label: 'Approval Center',
+    label: 'Pusat Persetujuan',
     to: '/approvals',
     icon: ClipboardCheck,
     permissionAny: [
       'approvals.inbox.read',
       'dashboard.read',
-      'transaction.purchase_orders.update',
+      'transaction.purchase_orders.approve',
+      'transaction.purchase_orders.reject',
       'transaction.item_requests.approve',
       'inventory.stock_adjustments.approve',
-      'inventory.stock_opnames.approve',
+      'inventory.stock_opnames.review',
       'inventory.asset_disposals.approve',
       'inventory.asset_losses.approve',
       'transaction.landed_costs.approve',
     ],
   },
   {
-    label: 'Reports',
+    label: 'Laporan',
     to: '/reports',
     icon: FileBarChart,
     permissionAny: [
@@ -369,7 +370,7 @@ export const navigation: NavItem[] = [
     ],
   },
   {
-    label: 'Notifications',
+    label: 'Notifikasi',
     to: '/operations/notifications',
     icon: Bell,
     permission: 'operations.notifications.read',
@@ -380,37 +381,37 @@ export const navigation: NavItem[] = [
     superAdminOnly: true,
     children: [
       {
-        label: 'Users',
+        label: 'Pengguna',
         to: '/administration/users',
         permission: 'auth.users.read',
         superAdminOnly: true,
       },
       {
-        label: 'Roles',
+        label: 'Peran',
         to: '/administration/roles',
         permission: 'auth.roles.read',
         superAdminOnly: true,
       },
       {
-        label: 'Permissions',
+        label: 'Izin',
         to: '/administration/permissions',
         permission: 'auth.permissions.read',
         superAdminOnly: true,
       },
       {
-        label: 'Audit Logs',
+        label: 'Log Audit',
         to: '/administration/audit-logs',
         permission: 'auth.activity.audit_logs.read',
         superAdminOnly: true,
       },
       {
-        label: 'Login History',
+        label: 'Riwayat Masuk',
         to: '/administration/login-histories',
         permission: 'auth.activity.login_histories.read',
         superAdminOnly: true,
       },
       {
-        label: 'Active Sessions',
+        label: 'Sesi Aktif',
         to: '/administration/active-sessions',
         permission: 'auth.activity.active_sessions.read',
         superAdminOnly: true,
@@ -422,11 +423,11 @@ export const navigation: NavItem[] = [
     icon: Settings,
     children: [
       {
-        label: 'Rekonsiliasi Cost',
+        label: 'Rekonsiliasi Biaya',
         to: '/maintenance/cost-reconciliation',
         permission: 'maintenance.cost_reconciliation.read',
       },
-      { label: 'Recycle Bin', to: '/maintenance/recycle-bin', superAdminOnly: true },
+      { label: 'Tempat Sampah', to: '/maintenance/recycle-bin', superAdminOnly: true },
     ],
   },
 ]
@@ -451,7 +452,7 @@ export const dashboardHighlights = [
     permission: 'transaction.item_usages.read',
   },
   {
-    label: 'Purchase Order',
+    label: 'Pesanan Pembelian',
     icon: ShoppingCart,
     to: '/procurement/purchase-orders',
     permission: 'transaction.purchase_orders.read',
@@ -474,16 +475,16 @@ export const dashboardHighlights = [
     to: '/assets/register',
     permission: 'inventory.assets.read',
   },
-  { label: 'Approval', icon: ClipboardCheck, to: '/approvals', permission: 'dashboard.read' },
+  { label: 'Persetujuan', icon: ClipboardCheck, to: '/approvals', permission: 'dashboard.read' },
   {
     label: 'Nilai Persediaan',
     icon: Calculator,
     to: '/inventory/cost-balances',
     permission: 'inventory.cost_balances.read',
   },
-  { label: 'Reports', icon: BarChart3, to: '/reports', permission: 'reports.inventory.read' },
+  { label: 'Laporan', icon: BarChart3, to: '/reports', permission: 'reports.inventory.read' },
   {
-    label: 'Notifications',
+    label: 'Notifikasi',
     icon: Bell,
     to: '/operations/notifications',
     permission: 'operations.notifications.read',
@@ -496,11 +497,16 @@ export const dashboardHighlights = [
     superAdminOnly: true,
   },
   {
-    label: 'Users',
+    label: 'Pengguna',
     icon: Users,
     to: '/administration/users',
     permission: 'auth.users.read',
     superAdminOnly: true,
   },
-  { label: 'Recycle Bin', icon: FileArchive, to: '/maintenance/recycle-bin', superAdminOnly: true },
+  {
+    label: 'Tempat Sampah',
+    icon: FileArchive,
+    to: '/maintenance/recycle-bin',
+    superAdminOnly: true,
+  },
 ]

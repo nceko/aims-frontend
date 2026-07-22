@@ -104,6 +104,25 @@ test('frontend permission references use exported backend permission codes', () 
   assert.ok(available.size >= 180)
 })
 
+test('sensitive workflow actions use granular phase 4 permissions', () => {
+  const expected = [
+    ['ApprovePurchaseOrder', 'transaction.purchase_orders.approve'],
+    ['CheckGoodsReceipt', 'transaction.goods_receipts.check'],
+    ['SubmitItemRequest', 'transaction.item_requests.submit'],
+    ['PostItemUsage', 'transaction.item_usages.post'],
+    ['PostStockAdjustment', 'inventory.stock_adjustments.post'],
+    ['PostStockOpname', 'inventory.stock_opnames.post'],
+    ['ReverseDeliveryOrder', 'transaction.delivery_orders.reverse'],
+  ]
+
+  for (const [operationId, permission] of expected) {
+    const actionPattern = new RegExp(
+      `operationId:\\s*'${operationId}'[\\s\\S]{0,220}?permission:\\s*'${permission.replaceAll('.', '\\.')}'`,
+    )
+    assert.match(modules, actionPattern)
+  }
+})
+
 test('legacy prototype permission prefixes are not used by current module configuration', () => {
   assert.doesNotMatch(modules, /'master\./)
   assert.doesNotMatch(modules, /'iam\./)
@@ -182,10 +201,11 @@ test('topbar provides persisted light and dark theme controls', () => {
 
 test('topbar provides context switching with Select2 fields', () => {
   assert.match(appTopbar, /ContextSwitcherModal/)
-  assert.match(appTopbar, /Ganti Context/)
+  assert.match(appTopbar, /Ganti Konteks/)
   assert.match(contextSwitcher, /<AppSelect/)
   assert.match(contextSwitcher, /auth\.switchContext/)
-  assert.doesNotMatch(contextSwitcher, /context_company_id/)
+  assert.match(contextSwitcher, /context_company_id/)
+  assert.match(contextSwitcher, /v-if="auth\.isSuperAdmin"/)
   assert.match(contextSwitcher, /context_location_id/)
   assert.match(contextSwitcher, /context_category_group_id/)
 })
@@ -232,10 +252,11 @@ test('menu layout can be selected per user and rendered below the topbar', () =>
   assert.match(profileView, /Menu di Bawah Topbar/)
 })
 
-test('context switching never changes company during an active session', () => {
-  assert.doesNotMatch(contextSwitcher, /context_company_id/)
-  assert.doesNotMatch(contextSwitcher, /companyChanged/)
-  assert.match(contextSwitcher, /Company dikunci selama session aktif/)
+test('context switching allows only super admins to change company', () => {
+  assert.match(contextSwitcher, /context_company_id/)
+  assert.match(contextSwitcher, /v-if="auth\.isSuperAdmin"/)
+  assert.match(contextSwitcher, /company_id: auth\.isSuperAdmin/)
+  assert.match(contextSwitcher, /v-else class="context-company-lock"/)
   assert.match(contextSwitcher, /location_id/)
   assert.match(contextSwitcher, /category_group_id/)
 })
@@ -329,14 +350,14 @@ test('protected API requests always use bearer authorization and safe content he
   assert.match(requestPolicy, /\/api\/v1\/auth\/refresh/)
 })
 
-test('idempotency header is opt-in because current backend CORS does not allow it', async () => {
+test('idempotency header is enabled because the backend CORS allows it', async () => {
   const runtimeConfig = await readFile(new URL('../src/config/runtime.ts', import.meta.url), 'utf8')
   const envExample = await readFile(new URL('../.env.example', import.meta.url), 'utf8')
   assert.match(httpClient, /runtimeConfig\.enableIdempotencyHeader/)
   assert.match(httpClient, /Idempotency-Key/)
   assert.match(requestPolicy, /needsIdempotencyKey/)
   assert.match(runtimeConfig, /enableIdempotencyHeader/)
-  assert.match(envExample, /VITE_ENABLE_IDEMPOTENCY_HEADER=false/)
+  assert.match(envExample, /VITE_ENABLE_IDEMPOTENCY_HEADER=true/)
 })
 
 test('all uploads downloads and raw documents use the centralized API client', () => {
@@ -571,6 +592,28 @@ test('large item and purchase-order selectors use searchable resource table moda
   assert.match(schemaFields, /<ApiResourcePicker/)
 })
 
+test('schema forms use semantic date, datetime, integer, number, and text inputs', async () => {
+  const schemaUtils = await readFile(new URL('../src/utils/schema.ts', import.meta.url), 'utf8')
+  const schemaFields = await readFile(
+    new URL('../src/components/data/SchemaFields.vue', import.meta.url),
+    'utf8',
+  )
+  const schemaOverrides = await readFile(
+    new URL('../src/config/operation-schema-overrides.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(schemaUtils, /resolvedSchemaFormat/)
+  assert.match(schemaUtils, /return 'date-time'/)
+  assert.match(schemaUtils, /return 'date'/)
+  assert.match(schemaUtils, /schema\.type === 'integer' \|\| schema\.type === 'number'/)
+  assert.match(schemaUtils, /date\.toISOString\(\)/)
+  assert.match(schemaFields, /child\.type === 'integer' \? '1'/)
+  assert.match(schemaFields, /:min="child\.minimum"/)
+  assert.match(schemaFields, /:max="child\.maximum"/)
+  assert.match(schemaOverrides, /CompleteDisposal:[\s\S]*?disposal_date:[\s\S]*?date-time/)
+  assert.match(schemaOverrides, /ReportLoss:[\s\S]*?loss_date:[\s\S]*?date-time/)
+})
+
 test('remote Select2 preserves selected values and shows server-search feedback', () => {
   assert.match(appSelect, /remoteSearch\?: boolean/)
   assert.match(appSelect, /minimumInputLength\?: number/)
@@ -583,9 +626,9 @@ test('remote Select2 preserves selected values and shows server-search feedback'
 })
 
 test('catalog item menu groups master item part number and supplier item', () => {
-  assert.match(navigation, /label: 'Item'[\s\S]*label: 'Master Item'/)
+  assert.match(navigation, /label: 'Barang'[\s\S]*label: 'Master Barang'/)
   assert.match(navigation, /label: 'Part Number'/)
-  assert.match(navigation, /label: 'Supplier Item'/)
+  assert.match(navigation, /label: 'Barang Pemasok'/)
   assert.match(appSidebar, /nav-subgroup__children/)
   assert.match(appHorizontalNav, /horizontal-nav__subgroup/)
 })
@@ -623,8 +666,8 @@ test('asset navigation separates warehouse direct migration and assignment lifec
   assert.match(navigation, /label: 'Ringkasan Aset'/)
   assert.match(navigation, /label: 'Aset dari Gudang'/)
   assert.match(navigation, /label: 'Aset Langsung'/)
-  assert.match(navigation, /label: 'Migrasi \/ Aset Existing'/)
-  assert.match(navigation, /label: 'Assignment Aktif'/)
+  assert.match(navigation, /label: 'Migrasi \/ Aset Lama'/)
+  assert.match(navigation, /label: 'Penugasan Aktif'/)
   assert.match(navigation, /label: 'Pengembalian Aset'/)
   assert.match(navigation, /label: 'Transfer Penanggung Jawab'/)
 })
@@ -656,7 +699,7 @@ test('reports are grouped by business area and procurement/audit endpoints are i
     new URL('../src/modules/reports/ReportsView.vue', import.meta.url),
     'utf8',
   )
-  assert.match(reportsView, /label: 'Inventory'/)
+  assert.match(reportsView, /label: 'Persediaan'/)
   assert.match(reportsView, /label: 'Pengadaan'/)
   assert.match(reportsView, /label: 'Pemakaian & Distribusi'/)
   assert.match(reportsView, /label: 'Aset'/)
@@ -709,6 +752,20 @@ test('delivery workflow exposes picking packing and scan stages', async () => {
   assert.match(modules, /operationId: 'ConfirmDeliveryOrderPacking'/)
   assert.match(modules, /statuses: \['PICKING'\]/)
   assert.match(modules, /statuses: \['PACKING'\]/)
+  const router = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
+  const scanView = await readFile(
+    new URL('../src/modules/workflow/DeliveryOrderScanView.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(router, /delivery-orders\/:id\/scan-out/)
+  assert.match(router, /delivery-orders\/:id\/scan-in/)
+  assert.match(modules, /handler: 'delivery-order-scan-out'/)
+  assert.match(modules, /handler: 'delivery-order-scan-in'/)
+  assert.match(scanView, /PreviewDeliveryOrderScanOut/)
+  assert.match(scanView, /PostDeliveryOrderScannedOut/)
+  assert.match(scanView, /PreviewDeliveryOrderReceive/)
+  assert.match(scanView, /PostDeliveryOrderReceived/)
+  assert.match(scanView, /BrowserQRCodeReader/)
 })
 
 test('complaint workflow exposes return and replacement lifecycle actions', async () => {
@@ -753,7 +810,7 @@ test('minimum and low stock are presented in one workspace', async () => {
     'utf8',
   )
   const router = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
-  assert.match(navigation, /label: 'Minimum & Low Stock'/)
+  assert.match(navigation, /label: 'Stok Minimum & Stok Rendah'/)
   assert.match(router, /inventory\/minimum-low-stock/)
   assert.match(minimumView, /module-key="active"/)
   assert.match(minimumView, /'stock-thresholds'/)

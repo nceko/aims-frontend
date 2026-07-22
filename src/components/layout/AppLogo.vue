@@ -19,7 +19,7 @@ withDefaults(defineProps<{ compact?: boolean; inverse?: boolean }>(), {
     </span>
     <span v-if="!compact" class="app-logo__copy">
       <strong>AIMS</strong>
-      <small>Aset & Inventory Management System</small>
+      <small>Sistem Manajemen Aset & Persediaan</small>
     </span>
   </RouterLink>
 </template>

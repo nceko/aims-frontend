@@ -49,9 +49,9 @@ const visibleRows = computed(() =>
 const shortcuts = computed(() =>
   [
     {
-      label: 'Purchase Order',
+      label: 'Pesanan Pembelian',
       to: '/procurement/purchase-orders',
-      permission: 'transaction.purchase_orders.update',
+      permission: 'transaction.purchase_orders.approve',
     },
     {
       label: 'Permintaan Barang',
@@ -66,10 +66,10 @@ const shortcuts = computed(() =>
     {
       label: 'Stock Opname',
       to: '/inventory/stock-opnames',
-      permission: 'inventory.stock_opnames.approve',
+      permission: 'inventory.stock_opnames.review',
     },
     {
-      label: 'Landed Cost',
+      label: 'Biaya Perolehan',
       to: '/procurement/landed-costs',
       permission: 'transaction.landed_costs.approve',
     },
@@ -131,7 +131,7 @@ onMounted(load)
     >
       <template #actions>
         <AppButton variant="ghost" :loading="loading" @click="load">
-          <RefreshCw :size="17" /> Refresh
+          <RefreshCw :size="17" /> Muat Ulang
         </AppButton>
       </template>
     </PageHeader>

@@ -44,8 +44,8 @@ const initials = computed(() =>
     .toUpperCase(),
 )
 const contextLabel = computed(() => {
-  const location = auth.user?.location_name || 'Location'
-  const category = auth.user?.category_group_name || 'Category Group'
+  const location = auth.user?.location_name || 'Lokasi'
+  const category = auth.user?.category_group_name || 'Kelompok Kategori'
   return `${location} · ${category}`
 })
 const themeLabel = computed(() =>
@@ -218,7 +218,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
       >
         <RefreshCw :size="18" />
         <span>
-          <small>Context aktif</small>
+          <small>Konteks aktif</small>
           <strong>{{ contextLabel }}</strong>
         </span>
       </button>
@@ -263,7 +263,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
           <span class="profile-trigger__avatar">{{ initials || 'U' }}</span>
           <span class="profile-trigger__copy">
             <strong>{{ auth.displayName }}</strong>
-            <small>{{ auth.user?.roles?.[0] || 'User AIMS' }}</small>
+            <small>{{ auth.user?.roles?.[0] || 'Pengguna AIMS' }}</small>
           </span>
           <ChevronDown :size="16" />
         </button>
@@ -275,7 +275,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
           <RouterLink to="/profile" @click="profileOpen = false">
             <UserRound :size="17" /> Profil Saya
           </RouterLink>
-          <button type="button" @click="openContext"><RefreshCw :size="17" /> Ganti Context</button>
+          <button type="button" @click="openContext"><RefreshCw :size="17" /> Ganti Konteks</button>
           <button type="button" @click="openPassword">
             <KeyRound :size="17" /> Ganti Password
           </button>

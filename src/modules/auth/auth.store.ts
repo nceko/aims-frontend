@@ -35,6 +35,7 @@ function safeProfile(...sources: Array<Partial<UserProfile> | null | undefined>)
     location_type_code: source.location_type_code,
     is_central_location: source.is_central_location,
     is_global_super_admin: source.is_global_super_admin,
+    scope_mode: source.scope_mode,
     has_context: source.has_context,
   }
 }
@@ -114,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const response = await authApi.switchContext({
+        company_id: payload.company_id,
         location_id: payload.location_id,
         category_group_id: payload.category_group_id,
         current_refresh_token: tokenStorage.refreshToken() ?? undefined,
@@ -126,10 +128,17 @@ export const useAuthStore = defineStore('auth', () => {
       const categoryGroup = contextOptions.value.categoryGroups.find(
         (item) => Number(item.id) === payload.category_group_id,
       )
+      if (payload.company_id) {
+        selectedCompany.value =
+          companies.value.find(
+            (company) =>
+              Number(company.company_id ?? company.id_company ?? company.id) === payload.company_id,
+          ) ?? selectedCompany.value
+      }
       user.value = safeProfile(user.value, response, profile, {
-        company_id: user.value?.company_id ?? profile.company_id ?? response.company_id,
+        company_id: payload.company_id ?? profile.company_id ?? response.company_id,
         company_name:
-          user.value?.company_name ??
+          profile.company_name ??
           selectedCompany.value?.company_name ??
           selectedCompany.value?.name,
         location_id: payload.location_id,

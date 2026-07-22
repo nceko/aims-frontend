@@ -59,6 +59,18 @@ export const operationSchemaOverrides: Record<string, OperationOverride> = {
   },
   ConfirmDeliveryOrderPicking: { body: deliveryConfirmationSchema },
   ConfirmDeliveryOrderPacking: { body: deliveryConfirmationSchema },
+  CompleteDisposal: {
+    body: {
+      type: 'object',
+      properties: { disposal_date: { type: 'string', format: 'date-time' } },
+    },
+  },
+  ReportLoss: {
+    body: {
+      type: 'object',
+      properties: { loss_date: { type: 'string', format: 'date-time' } },
+    },
+  },
   ApproveComplaintReturn: {
     body: {
       type: 'object',

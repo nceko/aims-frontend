@@ -42,7 +42,7 @@ watch(
         </RouterView>
       </main>
       <footer class="app-footer">
-        <span class="app-footer__product">AIMS · Aset & Inventory Management System</span>
+        <span class="app-footer__product">AIMS · Sistem Manajemen Aset & Persediaan</span>
         <span class="app-footer__copyright">
           © {{ currentYear }} PT Baraka Sarana Tama. Seluruh hak cipta dilindungi.
         </span>

@@ -12,9 +12,9 @@ import { errorMessage } from '@/utils/api'
 const resources = [
   ['RestoreCompany', 'Company'],
   ['RestoreLocationType', 'Tipe Lokasi'],
-  ['RestoreLocation', 'Location'],
+  ['RestoreLocation', 'Lokasi'],
   ['RestoreWarehouse', 'Warehouse'],
-  ['RestoreCategoryGroup', 'Category Group'],
+  ['RestoreCategoryGroup', 'Kelompok Kategori'],
   ['RestoreCategory', 'Category'],
   ['RestoreUOM', 'UOM'],
   ['RestoreBrand', 'Brand'],

@@ -149,7 +149,7 @@ watch(() => [props.entityType, props.entityId], load)
     <div class="attachments-panel__header">
       <div>
         <h3><Paperclip :size="18" /> Lampiran Dokumen</h3>
-        <p>Dokumen pendukung tersimpan sesuai company dan context aktif.</p>
+        <p>Dokumen pendukung tersimpan sesuai perusahaan dan konteks aktif.</p>
       </div>
       <button
         class="icon-button"

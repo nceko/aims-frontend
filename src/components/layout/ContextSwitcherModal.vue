@@ -11,10 +11,16 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: []; switched: [] }>()
 
 const auth = useAuthStore()
-const form = reactive({ locationId: '', categoryGroupId: '' })
+const form = reactive({ companyId: '', locationId: '', categoryGroupId: '' })
 const error = ref('')
 const initializing = ref(false)
 
+const companyOptions = computed<SelectOption[]>(() =>
+  auth.companies.map((item) => ({
+    value: Number(item.company_id ?? item.id_company ?? item.id),
+    label: item.company_name || item.name || item.company_code || item.code || '-',
+  })),
+)
 const locationOptions = computed<SelectOption[]>(() =>
   auth.contextOptions.locations.map((item) => ({ value: item.id, label: item.name })),
 )
@@ -22,7 +28,12 @@ const categoryOptions = computed<SelectOption[]>(() =>
   auth.contextOptions.categoryGroups.map((item) => ({ value: item.id, label: item.name })),
 )
 const busy = computed(() => initializing.value || auth.contextLoading || auth.loading)
-const valid = computed(() => Boolean(form.locationId) && Boolean(form.categoryGroupId))
+const valid = computed(
+  () =>
+    (!auth.isSuperAdmin || Boolean(form.companyId)) &&
+    Boolean(form.locationId) &&
+    Boolean(form.categoryGroupId),
+)
 
 function chooseCurrentOrEmpty(options: SelectOption[], current?: number): string {
   const matching = options.find((option) => Number(option.value) === Number(current))
@@ -34,11 +45,13 @@ async function initialize(): Promise<void> {
   error.value = ''
   initializing.value = true
   try {
+    if (auth.isSuperAdmin && auth.companies.length === 0) await auth.loadCompanies()
+    const companyId =
+      auth.user?.company_id ?? auth.selectedCompany?.company_id ?? auth.selectedCompany?.id
+    form.companyId = companyId ? String(companyId) : ''
     const hasCachedOptions =
       auth.contextOptions.locations.length > 0 && auth.contextOptions.categoryGroups.length > 0
     if (!hasCachedOptions) {
-      const companyId =
-        auth.user?.company_id ?? auth.selectedCompany?.company_id ?? auth.selectedCompany?.id
       await auth.loadContextOptions(companyId ? Number(companyId) : undefined)
     }
     form.locationId = chooseCurrentOrEmpty(locationOptions.value, auth.user?.location_id)
@@ -50,14 +63,31 @@ async function initialize(): Promise<void> {
   }
 }
 
+async function changeCompany(companyId: string): Promise<void> {
+  form.locationId = ''
+  form.categoryGroupId = ''
+  if (!companyId) return
+  initializing.value = true
+  try {
+    await auth.loadContextOptions(Number(companyId))
+    form.locationId = chooseCurrentOrEmpty(locationOptions.value)
+    form.categoryGroupId = chooseCurrentOrEmpty(categoryOptions.value)
+  } catch (cause) {
+    error.value = errorMessage(cause, 'Pilihan context perusahaan tidak dapat dimuat.')
+  } finally {
+    initializing.value = false
+  }
+}
+
 async function submit(): Promise<void> {
   error.value = ''
   if (!valid.value) {
-    error.value = 'Location dan category group wajib dipilih.'
+    error.value = 'Lokasi dan kelompok kategori wajib dipilih.'
     return
   }
   try {
     await auth.switchContext({
+      company_id: auth.isSuperAdmin ? Number(form.companyId) : undefined,
       location_id: Number(form.locationId),
       category_group_id: Number(form.categoryGroupId),
     })
@@ -81,19 +111,30 @@ watch(
   <AppModal
     :open="open"
     title="Ganti Context Kerja"
-    description="Pilih location dan category group pada company yang sedang aktif. Untuk berpindah company, silakan logout lalu login kembali."
+    description="Pilih perusahaan, lokasi, dan kelompok kategori untuk context kerja aktif."
     size="md"
     :busy="busy"
     @close="emit('close')"
   >
     <div v-if="error" class="notice notice--danger">{{ error }}</div>
 
-    <div class="context-company-lock">
+    <AppSelect
+      v-if="auth.isSuperAdmin"
+      v-model="form.companyId"
+      name="context_company_id"
+      label="Perusahaan"
+      :options="companyOptions"
+      :loading="initializing"
+      required
+      @update:model-value="changeCompany(String($event))"
+    />
+
+    <div v-else class="context-company-lock">
       <Building2 :size="18" />
       <div>
         <small>Company aktif</small>
         <strong>{{ auth.user?.company_name || auth.selectedCompany?.company_name || '-' }}</strong>
-        <span>Company dikunci selama session aktif.</span>
+        <span>Perusahaan mengikuti akses akun.</span>
       </div>
     </div>
 
@@ -101,7 +142,7 @@ watch(
       <div>
         <MapPin :size="18" />
         <span
-          ><small>Location aktif</small><strong>{{ auth.user?.location_name || '-' }}</strong></span
+          ><small>Lokasi aktif</small><strong>{{ auth.user?.location_name || '-' }}</strong></span
         >
       </div>
       <div>
@@ -117,7 +158,7 @@ watch(
       <AppSelect
         v-model="form.locationId"
         name="context_location_id"
-        label="Location"
+        label="Lokasi"
         :options="locationOptions"
         :loading="auth.contextLoading || initializing"
         required
@@ -125,7 +166,7 @@ watch(
       <AppSelect
         v-model="form.categoryGroupId"
         name="context_category_group_id"
-        label="Category Group"
+        label="Kelompok Kategori"
         :options="categoryOptions"
         :loading="auth.contextLoading || initializing"
         required
@@ -135,7 +176,7 @@ watch(
     <template #footer>
       <AppButton variant="ghost" :disabled="busy" @click="emit('close')">Batal</AppButton>
       <AppButton :loading="busy" :disabled="!valid" @click="submit">
-        <RefreshCw :size="17" /> Terapkan Context
+        <RefreshCw :size="17" /> Terapkan Konteks
       </AppButton>
     </template>
   </AppModal>

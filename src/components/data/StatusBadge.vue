@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { indonesianStatus } from '@/utils/indonesian'
 
 const props = defineProps<{ value?: unknown }>()
 
@@ -7,6 +8,7 @@ const text = computed(() => {
   if (typeof props.value === 'boolean') return props.value ? 'ACTIVE' : 'INACTIVE'
   return String(props.value ?? 'UNKNOWN').toUpperCase()
 })
+const label = computed(() => indonesianStatus(text.value))
 
 const tone = computed(() => {
   const value = text.value
@@ -41,6 +43,6 @@ const tone = computed(() => {
 
 <template>
   <span class="status-badge" :class="`status-badge--${tone}`">
-    {{ text.replaceAll('_', ' ') }}
+    {{ label }}
   </span>
 </template>

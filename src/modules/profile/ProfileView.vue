@@ -66,7 +66,7 @@ function passwordChanged(): void {
           <span v-for="role in roles" :key="role" class="profile-role">
             <BadgeCheck :size="14" /> {{ role }}
           </span>
-          <span v-if="!roles.length && !auth.isSuperAdmin" class="profile-role">User AIMS</span>
+          <span v-if="!roles.length && !auth.isSuperAdmin" class="profile-role">Pengguna AIMS</span>
         </div>
       </div>
       <div class="profile-hero-card__status">
@@ -94,7 +94,7 @@ function passwordChanged(): void {
           </div>
           <div>
             <dt><BadgeCheck :size="17" /> Jumlah permission</dt>
-            <dd>{{ sortedPermissions.length }} permission aktif</dd>
+            <dd>{{ sortedPermissions.length }} izin aktif</dd>
           </div>
         </dl>
       </AppCard>
@@ -113,19 +113,19 @@ function passwordChanged(): void {
           <div>
             <span class="profile-context-list__icon"><MapPin :size="19" /></span>
             <span
-              ><small>Location</small><strong>{{ auth.user?.location_name || '-' }}</strong></span
+              ><small>Lokasi</small><strong>{{ auth.user?.location_name || '-' }}</strong></span
             >
           </div>
           <div>
             <span class="profile-context-list__icon"><Layers3 :size="19" /></span>
             <span
-              ><small>Category Group</small
+              ><small>Kelompok Kategori</small
               ><strong>{{ auth.user?.category_group_name || '-' }}</strong></span
             >
           </div>
         </div>
         <AppButton class="profile-context-action" variant="secondary" @click="contextOpen = true">
-          <RefreshCw :size="17" /> Ganti Context
+          <RefreshCw :size="17" /> Ganti Konteks
         </AppButton>
       </AppCard>
     </div>

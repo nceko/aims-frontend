@@ -17,6 +17,7 @@ import GoodsReceiptQrModal, {
   type GoodsReceiptQrLabel,
 } from '@/components/data/GoodsReceiptQrModal.vue'
 import { resourceModules } from '@/config/modules'
+import { resolveOperationFieldOrder } from '@/config/form-layouts'
 import { useAuthStore } from '@/modules/auth/auth.store'
 import { executeOperation, getOperation } from '@/services/api-operations'
 import { apiClient } from '@/services/api-client'
@@ -68,6 +69,58 @@ const formMode = ref<'create' | 'edit' | 'action' | null>(null)
 const formOperation = ref<ApiOperation | null>(null)
 const activeAction = ref<ResourceActionDefinition | null>(null)
 const formModel = ref<Record<string, unknown>>({})
+
+const formFieldOrder = computed<string[]>(() => {
+  return resolveOperationFieldOrder(
+    formOperation.value?.operationId,
+    formOperation.value?.body ?? undefined,
+  )
+})
+
+const formDisabledFields = computed<string[]>(() => {
+  if (auth.isSuperAdmin) return []
+  const properties = formOperation.value?.body?.properties ?? {}
+  return [
+    'company_id',
+    'id_company',
+    'category_group_id',
+    'location_id',
+    'requester_location_id',
+    'reported_by_location_id',
+  ].filter((field) => field in properties)
+})
+
+function activeCompanyId(): number | undefined {
+  const selected = auth.selectedCompany
+  const raw = selected?.company_id ?? selected?.id_company ?? selected?.id ?? auth.user?.company_id
+  const companyId = Number(raw)
+  return Number.isFinite(companyId) && companyId > 0 ? companyId : undefined
+}
+
+function activeContextDefaults(schema?: ApiOperation['body']): Record<string, unknown> {
+  const properties = schema?.properties ?? {}
+  const companyId = activeCompanyId()
+  const locationId = Number(auth.user?.location_id)
+  const categoryGroupId = Number(auth.user?.category_group_id)
+  const defaults: Record<string, unknown> = {}
+  if (companyId) {
+    if ('company_id' in properties) defaults.company_id = companyId
+    if ('id_company' in properties) defaults.id_company = companyId
+  }
+  if (Number.isFinite(locationId) && locationId > 0) {
+    for (const field of ['location_id', 'requester_location_id', 'reported_by_location_id']) {
+      if (field in properties) defaults[field] = locationId
+    }
+  }
+  if (
+    Number.isFinite(categoryGroupId) &&
+    categoryGroupId > 0 &&
+    'category_group_id' in properties
+  ) {
+    defaults.category_group_id = categoryGroupId
+  }
+  return defaults
+}
 const showDetail = ref(false)
 const showForm = ref(false)
 const pendingDeleteRow = ref<Record<string, unknown> | null>(null)
@@ -331,6 +384,7 @@ function openCreate() {
   activeAction.value = null
   formModel.value = {
     ...(initialValue(createOperation.value.body) as Record<string, unknown>),
+    ...activeContextDefaults(createOperation.value.body),
     ...createDefaults.value,
   }
   showForm.value = true
@@ -595,6 +649,17 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
       return
     }
     await router.push(`/procurement/goods-receipts/${encodeURIComponent(String(id))}/scan-in`)
+    return
+  }
+  if (action.handler === 'delivery-order-scan-out' || action.handler === 'delivery-order-scan-in') {
+    if (!row) return
+    const id = rowId(row)
+    if (id === undefined) {
+      error.value = 'ID Surat Jalan tidak ditemukan.'
+      return
+    }
+    const scanPath = action.handler === 'delivery-order-scan-out' ? 'scan-out' : 'scan-in'
+    await router.push(`/inventory/delivery-orders/${encodeURIComponent(String(id))}/${scanPath}`)
     return
   }
   if (action.handler === 'generate-qr-labels') {
@@ -1257,7 +1322,13 @@ watch(
         {{ formHint }}
       </div>
       <form v-if="formOperation?.body" id="resource-form" @submit.prevent="submitForm">
-        <SchemaFields :schema="formOperation.body" v-model="formModel" :disabled="hydrating" />
+        <SchemaFields
+          :schema="formOperation.body"
+          v-model="formModel"
+          :disabled="hydrating"
+          :field-order="formFieldOrder"
+          :disabled-fields="formDisabledFields"
+        />
       </form>
       <div v-else class="notice notice--warning">Action ini tidak membutuhkan data tambahan.</div>
       <template #footer

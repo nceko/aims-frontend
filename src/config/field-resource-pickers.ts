@@ -58,7 +58,7 @@ export const fieldResourcePickers: Record<string, FieldResourcePickerSource> = {
       { key: 'category_name', label: 'Category' },
       { key: 'brand_name', label: 'Brand' },
       { key: 'tracking_type', label: 'Tracking' },
-      { key: 'uom_code', label: 'Base UOM', width: '110px' },
+      { key: 'uom_code', label: 'Satuan Dasar', width: '110px' },
       { key: 'is_asset', label: 'Asset', width: '90px' },
     ],
     selectionEffects: {
@@ -71,7 +71,7 @@ export const fieldResourcePickers: Record<string, FieldResourcePickerSource> = {
     detailOperationId: 'FindPurchaseOrderByID',
     valueKey: 'po_id',
     labelKeys: ['po_no', 'supplier_name'],
-    title: 'Pilih Purchase Order',
+    title: 'Pilih Pesanan Pembelian',
     description:
       'Hanya PO yang sudah difinalisasi, belum selesai diterima, dan masih mempunyai sisa quantity yang ditampilkan.',
     searchPlaceholder: 'Cari nomor PO, supplier, atau warehouse…',
