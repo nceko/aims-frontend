@@ -4,6 +4,8 @@ const option = (path: string, extra: Partial<FieldOptionSource> = {}): FieldOpti
   path,
   valueKeys: ['value', 'id'],
   labelKeys: ['label', 'name', 'code'],
+  remoteSearch: path.split(/[?#]/, 1)[0]?.split('/').includes('options') ?? false,
+  minimumInputLength: 1,
   ...extra,
 })
 
@@ -208,6 +210,8 @@ export const fieldLabels: Record<string, string> = {
   asset_condition: 'Kondisi Aset',
   asset_tag: 'Label Aset',
   warranty_expired_at: 'Garansi Berakhir',
+  purchase_date: 'Tanggal Pembelian',
+  purchase_cost: 'Nilai Perolehan',
   requires_serial: 'Wajib Serial',
   has_part_number: 'Memiliki Part Number',
   is_asset: 'Aset',

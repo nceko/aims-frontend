@@ -3,10 +3,12 @@ import { computed } from 'vue'
 import { Plus, Trash2 } from '@lucide/vue'
 import ApiOptionField from './ApiOptionField.vue'
 import ApiResourcePicker from './ApiResourcePicker.vue'
+import PurchaseOrderLinesField from './PurchaseOrderLinesField.vue'
 import type { ApiSchema } from '@/types/resource'
 import { fieldOptionSources, humanizeField } from '@/config/field-options'
 import { fieldResourcePickers } from '@/config/field-resource-pickers'
 import { initialValue, inputType, isLongTextField } from '@/utils/schema'
+import { groupFieldEntries } from '@/utils/field-grouping'
 
 defineOptions({ name: 'SchemaFields' })
 const props = withDefaults(
@@ -17,8 +19,19 @@ const props = withDefaults(
     disabled?: boolean
     fieldOrder?: string[]
     disabledFields?: string[]
+    optionDefaults?: Record<string, string>
+    nested?: boolean
+    groupingContext?: string
   }>(),
-  { rootModel: undefined, disabled: false, fieldOrder: () => [], disabledFields: () => [] },
+  {
+    rootModel: undefined,
+    disabled: false,
+    fieldOrder: () => [],
+    disabledFields: () => [],
+    optionDefaults: () => ({}),
+    nested: false,
+    groupingContext: '',
+  },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>] }>()
 const root = computed(() => props.rootModel ?? props.modelValue)
@@ -58,6 +71,14 @@ const entries = computed(() => {
       return leftIndex - rightIndex
     })
 })
+const groups = computed(() =>
+  groupFieldEntries(
+    entries.value,
+    (_key, schema) =>
+      schema.type === 'array' ? [] : schema.type === 'object' || schema.properties ? {} : undefined,
+    props.groupingContext || props.schema.ref,
+  ),
+)
 
 function fieldDisabled(name: string): boolean {
   return props.disabled || props.disabledFields.includes(name)
@@ -71,6 +92,13 @@ function hasResourcePicker(name: string): boolean {
 }
 function hasOptions(name: string, schema: ApiSchema): boolean {
   return Boolean(fieldOptionSources[name] || schema.enum?.length)
+}
+function isPurchaseOrderLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    Boolean(schema.items?.ref?.includes('PurchaseOrderLine')) &&
+    Boolean(schema.items?.properties?.ordered_qty)
+  )
 }
 function applyResourceSelection(name: string, row: Record<string, unknown>) {
   const source = fieldResourcePickers[name]
@@ -122,135 +150,170 @@ function updatePrimitiveArray(key: string, event: Event) {
 </script>
 
 <template>
-  <div class="schema-form-grid">
-    <template v-for="[name, child] in entries" :key="name">
-      <fieldset
-        v-if="child.type === 'object' || child.properties"
-        class="schema-fieldset schema-fieldset--full"
-      >
-        <legend>{{ humanizeField(name) }}</legend>
-        <SchemaFields
-          :schema="child"
-          :model-value="(modelValue[name] as Record<string, unknown>) || {}"
-          :root-model="contextModel"
-          :disabled="fieldDisabled(name)"
-          @update:model-value="update(name, $event)"
-        />
-      </fieldset>
-
-      <fieldset
-        v-else-if="child.type === 'array' && child.items?.type === 'object'"
-        class="schema-fieldset schema-fieldset--full"
-      >
-        <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
-        <div class="repeatable-list">
-          <article
-            v-for="(item, index) in (modelValue[name] as unknown[]) || []"
-            :key="index"
-            class="repeatable-item"
+  <div class="schema-form-sections">
+    <section
+      v-for="group in groups"
+      :key="group.key"
+      class="form-section"
+      :class="{ 'form-section--nested': nested }"
+    >
+      <header v-if="!nested" class="form-section__header">
+        <h3>{{ group.title }}</h3>
+        <p>{{ group.description }}</p>
+      </header>
+      <div class="schema-form-grid">
+        <template v-for="[name, child] in group.entries" :key="name">
+          <fieldset
+            v-if="child.type === 'object' || child.properties"
+            class="schema-fieldset schema-fieldset--full"
           >
-            <div class="repeatable-item__header">
-              <strong>{{ humanizeField(name) }} #{{ index + 1 }}</strong
-              ><button
-                type="button"
-                class="icon-button icon-button--danger"
-                :disabled="disabled"
-                @click="removeArrayItem(name, index)"
+            <legend>{{ humanizeField(name) }}</legend>
+            <SchemaFields
+              :schema="child"
+              :model-value="(modelValue[name] as Record<string, unknown>) || {}"
+              :root-model="contextModel"
+              :disabled="fieldDisabled(name)"
+              :grouping-context="groupingContext"
+              nested
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
+              isPurchaseOrderLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
+            <PurchaseOrderLinesField
+              :schema="child.items"
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :supplier-id="contextModel.supplier_id"
+              :disabled="fieldDisabled(name)"
+              :required="requiredFields.has(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="child.type === 'array' && child.items?.type === 'object'"
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
+            <div class="repeatable-list">
+              <article
+                v-for="(item, index) in (modelValue[name] as unknown[]) || []"
+                :key="index"
+                class="repeatable-item"
               >
-                <Trash2 :size="16" />
+                <div class="repeatable-item__header">
+                  <strong>{{ humanizeField(name) }} #{{ index + 1 }}</strong
+                  ><button
+                    type="button"
+                    class="icon-button icon-button--danger"
+                    :disabled="disabled"
+                    @click="removeArrayItem(name, index)"
+                  >
+                    <Trash2 :size="16" />
+                  </button>
+                </div>
+                <SchemaFields
+                  :schema="child.items"
+                  :model-value="(item as Record<string, unknown>) || {}"
+                  :root-model="{ ...contextModel, ...((item as Record<string, unknown>) || {}) }"
+                  :disabled="disabled"
+                  @update:model-value="updateArrayItem(name, index, $event)"
+                />
+              </article>
+              <button
+                type="button"
+                class="repeatable-add"
+                :disabled="disabled"
+                @click="addArrayItem(name, child)"
+              >
+                <Plus :size="16" /> Tambah {{ humanizeField(name) }}
               </button>
             </div>
-            <SchemaFields
-              :schema="child.items"
-              :model-value="(item as Record<string, unknown>) || {}"
-              :root-model="{ ...contextModel, ...((item as Record<string, unknown>) || {}) }"
-              :disabled="disabled"
-              @update:model-value="updateArrayItem(name, index, $event)"
-            />
-          </article>
-          <button
-            type="button"
-            class="repeatable-add"
-            :disabled="disabled"
-            @click="addArrayItem(name, child)"
-          >
-            <Plus :size="16" /> Tambah {{ humanizeField(name) }}
-          </button>
-        </div>
-      </fieldset>
+          </fieldset>
 
-      <label
-        v-else
-        class="field"
-        :class="{ 'field--full': isLongTextField(name) || child.type === 'array' }"
-      >
-        <span class="field__label"
-          >{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></span
-        >
-        <ApiResourcePicker
-          v-if="hasResourcePicker(name)"
-          :field-name="name"
-          :model-value="modelValue[name]"
-          :root-model="contextModel"
-          :source="fieldResourcePickers[name]!"
-          :required="requiredFields.has(name)"
-          :disabled="fieldDisabled(name)"
-          @update:model-value="update(name, $event)"
-          @select="applyResourceSelection(name, $event)"
-        />
-        <ApiOptionField
-          v-else-if="hasOptions(name, child)"
-          :field-name="name"
-          :model-value="modelValue[name]"
-          :root-model="contextModel"
-          :multiple="child.type === 'array'"
-          :required="requiredFields.has(name)"
-          :disabled="fieldDisabled(name)"
-          :enum-values="child.enum"
-          @update:model-value="update(name, $event)"
-        />
-        <label v-else-if="child.type === 'boolean'" class="checkbox-control">
-          <input
-            type="checkbox"
-            :checked="Boolean(modelValue[name])"
-            :disabled="fieldDisabled(name)"
-            @change="update(name, ($event.target as HTMLInputElement).checked)"
-          />
-          <span>{{ Boolean(modelValue[name]) ? 'Ya' : 'Tidak' }}</span>
-        </label>
-        <textarea
-          v-else-if="isLongTextField(name)"
-          class="field__control field__textarea"
-          :value="String(modelValue[name] ?? '')"
-          :required="requiredFields.has(name)"
-          :disabled="fieldDisabled(name)"
-          rows="3"
-          @input="update(name, ($event.target as HTMLTextAreaElement).value)"
-        ></textarea>
-        <input
-          v-else-if="child.type !== 'array'"
-          class="field__control"
-          :type="inputType(child, name)"
-          :step="child.type === 'number' ? 'any' : child.type === 'integer' ? '1' : undefined"
-          :min="child.minimum"
-          :max="child.maximum"
-          :value="String(modelValue[name] ?? '')"
-          :required="requiredFields.has(name)"
-          :disabled="fieldDisabled(name)"
-          @input="update(name, ($event.target as HTMLInputElement).value)"
-        />
-        <input
-          v-else
-          class="field__control"
-          type="text"
-          :value="primitiveArrayValue(modelValue[name])"
-          :required="requiredFields.has(name)"
-          :disabled="fieldDisabled(name)"
-          placeholder="Pisahkan dengan koma"
-          @input="updatePrimitiveArray(name, $event)"
-        />
-        <small v-if="child.description" class="field__hint">{{ child.description }}</small>
-      </label>
-    </template>
+          <label
+            v-else
+            class="field"
+            :class="{ 'field--full': isLongTextField(name) || child.type === 'array' }"
+          >
+            <span class="field__label"
+              >{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></span
+            >
+            <ApiResourcePicker
+              v-if="hasResourcePicker(name)"
+              :field-name="name"
+              :model-value="modelValue[name]"
+              :root-model="contextModel"
+              :source="fieldResourcePickers[name]!"
+              :required="requiredFields.has(name)"
+              :disabled="fieldDisabled(name)"
+              @update:model-value="update(name, $event)"
+              @select="applyResourceSelection(name, $event)"
+            />
+            <ApiOptionField
+              v-else-if="hasOptions(name, child)"
+              :field-name="name"
+              :model-value="modelValue[name]"
+              :root-model="contextModel"
+              :multiple="child.type === 'array'"
+              :required="requiredFields.has(name)"
+              :disabled="fieldDisabled(name)"
+              :enum-values="child.enum"
+              :default-code="optionDefaults[name]"
+              @update:model-value="update(name, $event)"
+            />
+            <label v-else-if="child.type === 'boolean'" class="checkbox-control">
+              <input
+                type="checkbox"
+                :checked="Boolean(modelValue[name])"
+                :disabled="fieldDisabled(name)"
+                @change="update(name, ($event.target as HTMLInputElement).checked)"
+              />
+              <span>{{ Boolean(modelValue[name]) ? 'Ya' : 'Tidak' }}</span>
+            </label>
+            <textarea
+              v-else-if="isLongTextField(name)"
+              class="field__control field__textarea"
+              :value="String(modelValue[name] ?? '')"
+              :required="requiredFields.has(name)"
+              :disabled="fieldDisabled(name)"
+              rows="3"
+              @input="update(name, ($event.target as HTMLTextAreaElement).value)"
+            ></textarea>
+            <input
+              v-else-if="child.type !== 'array'"
+              class="field__control"
+              :type="inputType(child, name)"
+              :step="child.type === 'number' ? 'any' : child.type === 'integer' ? '1' : undefined"
+              :min="child.minimum"
+              :max="child.maximum"
+              :value="String(modelValue[name] ?? '')"
+              :required="requiredFields.has(name)"
+              :disabled="fieldDisabled(name)"
+              @input="update(name, ($event.target as HTMLInputElement).value)"
+            />
+            <input
+              v-else
+              class="field__control"
+              type="text"
+              :value="primitiveArrayValue(modelValue[name])"
+              :required="requiredFields.has(name)"
+              :disabled="fieldDisabled(name)"
+              placeholder="Pisahkan dengan koma"
+              @input="updatePrimitiveArray(name, $event)"
+            />
+            <small v-if="child.description" class="field__hint">{{ child.description }}</small>
+          </label>
+        </template>
+      </div>
+    </section>
   </div>
 </template>

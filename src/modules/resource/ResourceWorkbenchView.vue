@@ -69,6 +69,14 @@ const formMode = ref<'create' | 'edit' | 'action' | null>(null)
 const formOperation = ref<ApiOperation | null>(null)
 const activeAction = ref<ResourceActionDefinition | null>(null)
 const formModel = ref<Record<string, unknown>>({})
+const formDescription = computed(() => {
+  const title = displayTitle.value.toLocaleLowerCase('id-ID')
+  if (formMode.value === 'create') return `Lengkapi informasi untuk menambahkan ${title}.`
+  if (formMode.value === 'edit') return `Perbarui informasi ${title} yang dipilih.`
+  if (activeAction.value?.label)
+    return `Lengkapi data untuk proses ${activeAction.value.label.toLocaleLowerCase('id-ID')}.`
+  return 'Lengkapi informasi yang diperlukan untuk melanjutkan proses.'
+})
 
 const formFieldOrder = computed<string[]>(() => {
   return resolveOperationFieldOrder(
@@ -221,6 +229,14 @@ const visibleDetailActions = computed(() => {
       (!allowedOperationIds.length || allowedOperationIds.includes(action.operationId)),
   )
 })
+const groupedDetailActions = computed(() => {
+  const groups = new Map<string, ResourceActionDefinition[]>()
+  for (const action of visibleDetailActions.value) {
+    const label = action.group?.trim() || 'Tindakan'
+    groups.set(label, [...(groups.get(label) ?? []), action])
+  }
+  return [...groups.entries()].map(([label, actions]) => ({ label, actions }))
+})
 const openRowMenuActions = computed(() =>
   rowMenuRow.value
     ? rowActions.value.filter((action) => actionVisible(action, rowMenuRow.value!))
@@ -233,10 +249,10 @@ const pageCount = computed(() =>
 )
 
 const detailSummary = computed<unknown>(() => {
-  if (definition.value?.key !== 'category-groups') return detail.value
   const source = asRecord(detail.value)
   const summary = { ...source }
-  delete summary.categories
+  if (definition.value?.key === 'category-groups') delete summary.categories
+  if (definition.value?.key === 'roles') delete summary.permissions
   return summary
 })
 
@@ -1304,7 +1320,7 @@ watch(
             ? `Edit ${displayTitle}`
             : (activeAction?.label ?? 'Proses')
       "
-      :description="formOperation?.summary"
+      :description="formDescription"
       size="xl"
       :busy="saving"
       :layer="showDetail ? 2 : 1"
@@ -1328,6 +1344,8 @@ watch(
           :disabled="hydrating"
           :field-order="formFieldOrder"
           :disabled-fields="formDisabledFields"
+          :option-defaults="formMode === 'create' ? definition?.createOptionDefaults : undefined"
+          :grouping-context="`${definition?.key ?? ''} ${displayTitle}`"
         />
       </form>
       <div v-else class="notice notice--warning">Action ini tidak membutuhkan data tambahan.</div>
@@ -1355,16 +1373,28 @@ watch(
         <span v-for="item in 5" :key="item" class="skeleton skeleton--row"></span>
       </div>
       <template v-else>
-        <div v-if="selected && visibleDetailActions.length" class="detail-actions">
-          <AppButton
-            v-for="action in visibleDetailActions"
-            :key="action.operationId"
-            :variant="action.tone ?? 'ghost'"
-            @click="beginAction(action, selected)"
-            >{{ action.label }}</AppButton
+        <div v-if="selected && groupedDetailActions.length" class="detail-action-groups">
+          <section
+            v-for="group in groupedDetailActions"
+            :key="group.label"
+            class="detail-action-group"
           >
+            <span class="detail-action-group__label">{{ group.label }}</span>
+            <div class="detail-actions">
+              <AppButton
+                v-for="action in group.actions"
+                :key="action.operationId"
+                :variant="action.tone ?? 'ghost'"
+                @click="beginAction(action, selected)"
+                >{{ action.label }}</AppButton
+              >
+            </div>
+          </section>
         </div>
-        <StructuredData :value="detailSummary" />
+        <StructuredData
+          :value="detailSummary"
+          :grouping-context="`${definition?.key ?? ''} ${displayTitle}`"
+        />
         <RelatedDataTable
           v-if="definition.key === 'category-groups'"
           title="Kategori dalam Group"
@@ -1377,6 +1407,7 @@ watch(
             :key="title"
             :title="title"
             :value="value"
+            :page-size="definition.key === 'roles' ? 8 : 10"
             :empty-text="`Belum ada ${String(title).toLowerCase()}.`"
           />
         </template>

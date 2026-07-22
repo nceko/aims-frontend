@@ -239,7 +239,7 @@ onMounted(load)
       @close="formOpen = false"
     >
       <div v-if="error" class="notice notice--danger">{{ error }}</div>
-      <SchemaFields v-model="form" :schema="schema" />
+      <SchemaFields v-model="form" :schema="schema" grouping-context="direct-asset Aset Langsung" />
       <section class="direct-asset-assignment">
         <label class="checkbox-control direct-asset-assignment__toggle">
           <input v-model="assignImmediately" type="checkbox" />
@@ -249,7 +249,11 @@ onMounted(load)
           <p class="field__hint">
             Aset akan langsung berstatus ASSIGNED tanpa membuat saldo warehouse palsu.
           </p>
-          <SchemaFields v-model="assignment" :schema="assignmentSchema" />
+          <SchemaFields
+            v-model="assignment"
+            :schema="assignmentSchema"
+            grouping-context="direct-asset-assignment Penugasan Awal Aset"
+          />
         </div>
       </section>
       <template #footer>
@@ -259,7 +263,11 @@ onMounted(load)
     </AppModal>
 
     <AppModal :open="detailOpen" title="Detail Aset Langsung" size="lg" @close="detailOpen = false">
-      <StructuredData v-if="selected" :value="selected" />
+      <StructuredData
+        v-if="selected"
+        :value="selected"
+        grouping-context="direct-asset Aset Langsung"
+      />
       <template #footer>
         <AppButton variant="ghost" @click="detailOpen = false">Tutup</AppButton>
         <RouterLink

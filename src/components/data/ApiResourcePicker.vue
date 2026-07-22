@@ -54,6 +54,16 @@ const selectedLabel = computed(() => {
     .map(String)
   return [...new Set(values)].join(' — ')
 })
+const selectedLabelParts = computed(() => {
+  const row = selectedRow.value
+  if (!row) return { primary: selectedLabel.value, secondary: '' }
+  const values = props.source.labelKeys
+    .map((key) => row[key])
+    .filter((value) => value !== undefined && value !== null && value !== '')
+    .map(String)
+  const unique = [...new Set(values)]
+  return { primary: unique[0] ?? '', secondary: unique[1] ?? '' }
+})
 
 function extractTotal(payload: unknown): number {
   if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
@@ -83,12 +93,22 @@ function queryFromModel(): Record<string, unknown> {
   return query
 }
 
+function pathFromModel(): Record<string, string | number> {
+  const path: Record<string, string | number> = {}
+  for (const [parameter, modelKey] of Object.entries(props.source.pathFromModel ?? {})) {
+    const value = props.rootModel[modelKey]
+    if (typeof value === 'string' || typeof value === 'number') path[parameter] = value
+  }
+  return path
+}
+
 async function load(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
     const payload = await executeOperation<unknown>(props.source.operationId, {
       raw: true,
+      path: pathFromModel(),
       query: {
         page: page.value,
         per_page: perPage.value,
@@ -203,10 +223,18 @@ onMounted(() => void hydrateSelected())
     <button
       type="button"
       class="resource-picker-field__trigger"
+      :class="{ 'resource-picker-field__trigger--stacked': source.stackedLabel }"
       :disabled="disabled"
       @click="openPicker"
     >
       <span v-if="selectedLoading" class="resource-picker-field__placeholder">Memuat pilihan…</span>
+      <span
+        v-else-if="selectedLabel && source.stackedLabel"
+        class="resource-picker-field__value resource-picker-field__value--stacked"
+      >
+        <strong>{{ selectedLabelParts.primary }}</strong>
+        <small v-if="selectedLabelParts.secondary">{{ selectedLabelParts.secondary }}</small>
+      </span>
       <span v-else-if="selectedLabel" class="resource-picker-field__value">{{
         selectedLabel
       }}</span>

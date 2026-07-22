@@ -420,6 +420,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     ],
     idCandidates: ['po_id', 'id'],
     attachmentEntityType: 'PURCHASE_ORDER',
+    createOptionDefaults: { warehouse_id: 'WH-PST' },
     editableStatuses: ['DRAFT'],
     listViews: [
       { key: 'open', label: 'Proses Aktif', query: { lifecycle: 'open' } },
@@ -1507,53 +1508,46 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
       {
         operationId: 'SetUserStatus',
         label: 'Ubah Status',
+        group: 'Akun & Keamanan',
         permission: 'auth.users.update_status',
       },
       {
         operationId: 'UpdateUserPassword',
         label: 'Ubah Password',
+        group: 'Akun & Keamanan',
         permission: 'auth.users.update_password',
       },
       {
         operationId: 'RevokeUserSessions',
         label: 'Cabut Session',
+        group: 'Akun & Keamanan',
         permission: 'auth.users.revoke_sessions',
         confirm: 'Cabut seluruh session aktif user ini?',
         tone: 'danger',
       },
-      { operationId: 'SetUserAccess', label: 'Atur Akses', permission: 'auth.users.access.update' },
+      {
+        operationId: 'SetUserAccess',
+        label: 'Atur Akses',
+        group: 'Hak Akses',
+        permission: 'auth.users.access.update',
+      },
       {
         operationId: 'AssignUserCategoryGroups',
         label: 'Atur Kelompok Kategori',
+        group: 'Hak Akses',
         permission: 'auth.users.access.update',
       },
       {
         operationId: 'AssignUserRoles',
         label: 'Atur Peran',
+        group: 'Hak Akses',
         permission: 'auth.users.roles.update',
-      },
-    ],
-    childSections: [
-      {
-        title: 'Akses Pengguna',
-        operationId: 'FindUserAccess',
-        permission: 'auth.users.access.read',
-      },
-      {
-        title: 'Kelompok Kategori Pengguna',
-        operationId: 'FindUserCategoryGroups',
-        permission: 'auth.users.access.read',
-      },
-      {
-        title: 'Peran Pengguna',
-        operationId: 'FindUserRoles',
-        permission: 'auth.users.roles.read',
       },
     ],
   }),
   roles: crud({
     key: 'roles',
-    title: 'Roles',
+    title: 'Peran',
     description: 'Kelola role dan assignment permission.',
     group: 'Administrasi',
     route: '/administration/roles',

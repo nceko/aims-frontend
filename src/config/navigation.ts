@@ -276,11 +276,6 @@ export const navigation: NavItem[] = [
             to: '/assets/direct-acquisitions',
             permission: 'inventory.asset_direct_acquisitions.read',
           },
-          {
-            label: 'Migrasi / Aset Lama',
-            to: '/assets/migrations',
-            permission: 'inventory.asset_migrations.read',
-          },
         ],
       },
       {

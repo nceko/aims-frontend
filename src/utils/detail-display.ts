@@ -43,6 +43,18 @@ const semanticBaseLabels: Record<string, string> = {
   permission: 'Izin',
 }
 
+const exactLabels: Record<string, string> = {
+  full_name: 'Nama Lengkap',
+  is_active: 'Status',
+  roles: 'Peran',
+  access: 'Hak Akses',
+  companies: 'Perusahaan',
+  locations: 'Lokasi',
+  category_groups: 'Kelompok Kategori',
+  scope_mode: 'Cakupan Lokasi',
+  is_default: 'Default',
+}
+
 const numericReferenceAliases = new Set([
   'company',
   'location',
@@ -103,6 +115,8 @@ export function shouldHideDetailField(
 
 export function detailFieldLabel(key: string): string {
   const normalized = normalizeKey(key)
+
+  if (exactLabels[normalized]) return exactLabels[normalized]
 
   if (normalized.startsWith('nama_')) {
     const base = normalized.slice(5)

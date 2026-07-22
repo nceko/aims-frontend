@@ -42,6 +42,7 @@ export interface ApiOperation {
 export interface ResourceActionDefinition {
   operationId: string
   label: string
+  group?: string
   permission?: string
   icon?: string
   tone?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -99,6 +100,8 @@ export interface ResourceModuleDefinition {
   readOnly?: boolean
   hideFromNavigation?: boolean
   attachmentEntityType?: string
+  /** Resolve an empty create-form option by a stable business code after its options load. */
+  createOptionDefaults?: Record<string, string>
 }
 
 export interface FieldOptionSource {
@@ -123,11 +126,14 @@ export interface FieldResourcePickerSource {
   detailOperationId?: string
   valueKey: string
   labelKeys: string[]
+  /** Present the first label as primary text and the second label below it. */
+  stackedLabel?: boolean
   columns: Array<{ key: string; label: string; width?: string }>
   searchPlaceholder?: string
   title?: string
   description?: string
   queryFromModel?: Record<string, string>
+  pathFromModel?: Record<string, string>
   fixedQuery?: Record<string, string | number | boolean>
   selectionEffects?: Record<string, string>
   clearFields?: string[]

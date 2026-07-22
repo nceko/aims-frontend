@@ -4,6 +4,8 @@ import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
 import { apiClient } from '@/services/api-client'
 import { normalizeList } from '@/utils/api'
 import { fieldOptionSources } from '@/config/field-options'
+import { useAuthStore } from '@/modules/auth/auth.store'
+import type { FieldOptionSource } from '@/types/resource'
 
 const props = withDefaults(
   defineProps<{
@@ -14,10 +16,20 @@ const props = withDefaults(
     required?: boolean
     disabled?: boolean
     enumValues?: Array<string | number | boolean>
+    sourceOverride?: FieldOptionSource
+    defaultCode?: string
+    clearable?: boolean
   }>(),
-  { multiple: false, required: false, disabled: false, enumValues: () => [] },
+  {
+    multiple: false,
+    required: false,
+    disabled: false,
+    enumValues: () => [],
+    clearable: true,
+  },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
+const auth = useAuthStore()
 
 interface CachedOptions {
   storedAt: number
@@ -29,7 +41,8 @@ const optionCache = new Map<string, CachedOptions>()
 
 const options = ref<SelectOption[]>([])
 const loading = ref(false)
-const source = computed(() => fieldOptionSources[props.fieldName])
+const source = computed(() => props.sourceOverride ?? fieldOptionSources[props.fieldName])
+let defaultApplied = false
 let debounceTimer: number | undefined
 let activeController: AbortController | undefined
 let requestSequence = 0
@@ -179,18 +192,48 @@ function normalizeOptions(payload: unknown): SelectOption[] {
   const rows = normalizeList<Record<string, unknown>>(payload)
   const valueKeys = source.value?.valueKeys ?? ['value', 'id']
   const labelKeys = source.value?.labelKeys ?? ['label', 'name', 'code']
-  return rows
+  const normalized = rows
     .map((row) => ({
       value: (firstValue(row, valueKeys) ?? '') as string | number | boolean,
       label: optionLabel(row, labelKeys),
       description: optionDescription(row),
     }))
     .filter((item) => item.value !== '')
+
+  if (
+    props.defaultCode &&
+    !defaultApplied &&
+    (props.modelValue === undefined || props.modelValue === null || props.modelValue === '')
+  ) {
+    const expected = props.defaultCode.trim().toLocaleUpperCase('id-ID')
+    const index = rows.findIndex((row) => {
+      const code = firstValue(row, [
+        'code',
+        'warehouse_code',
+        'item_code',
+        'supplier_code',
+        'category_code',
+      ])
+      return (
+        String(code ?? '')
+          .trim()
+          .toLocaleUpperCase('id-ID') === expected
+      )
+    })
+    const match = normalized[index]
+    if (match) {
+      defaultApplied = true
+      emit('update:modelValue', match.value)
+    }
+  }
+
+  return normalized
 }
 
 function buildQuery(searchTerm: string): Record<string, unknown> {
   const query: Record<string, unknown> = {}
   for (const [parameter, modelKey] of Object.entries(source.value?.queryFromModel ?? {})) {
+    if (parameter === 'company_id' && !auth.isSuperAdmin) continue
     const value = props.rootModel[modelKey]
     if (value !== undefined && value !== null && value !== '') query[parameter] = value
   }
@@ -294,7 +337,7 @@ const dependencies = computed(() =>
   ),
 )
 
-onMounted(() => void load())
+onMounted(() => void load(props.defaultCode ?? ''))
 watch(dependencies, () => {
   activeController?.abort()
   options.value = mergeWithSelected([])
@@ -331,7 +374,7 @@ onBeforeUnmount(() => {
     :minimum-input-length="minimumInputLength"
     :no-results-text="remoteNoResultsText"
     searchable
-    clearable
+    :clearable="clearable"
     @search="scheduleRemoteSearch"
     @update:model-value="updateValue"
   />

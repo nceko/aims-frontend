@@ -406,6 +406,22 @@ test('all options endpoints are requested without limit or pagination parameters
   assert.match(contextSwitcher, /if \(!hasCachedOptions\)/)
 })
 
+test('options use backend search and keep non-super-admin company context safe', async () => {
+  const fieldOptions = await readFile(
+    new URL('../src/config/field-options.ts', import.meta.url),
+    'utf8',
+  )
+  const optionField = await readFile(
+    new URL('../src/components/data/ApiOptionField.vue', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(fieldOptions, /remoteSearch:\s*path\.split/)
+  assert.match(fieldOptions, /minimumInputLength:\s*1/)
+  assert.match(optionField, /parameter === 'company_id' && !auth\.isSuperAdmin/)
+  assert.match(optionField, /query\[source\.value\?\.searchParam \?\? 'search'\] = term/)
+})
+
 test('dashboard no longer fetches or renders Audit & API Activity', async () => {
   const dashboardView = await readFile(
     new URL('../src/modules/dashboard/DashboardView.vue', import.meta.url),
@@ -662,11 +678,11 @@ test('inventory navigation follows stock request distribution and control workfl
   assert.match(navigation, /label: 'Pemeliharaan Sistem'/)
 })
 
-test('asset navigation separates warehouse direct migration and assignment lifecycles', () => {
+test('asset navigation exposes active registration and assignment lifecycles', () => {
   assert.match(navigation, /label: 'Ringkasan Aset'/)
   assert.match(navigation, /label: 'Aset dari Gudang'/)
   assert.match(navigation, /label: 'Aset Langsung'/)
-  assert.match(navigation, /label: 'Migrasi \/ Aset Lama'/)
+  assert.doesNotMatch(navigation, /label: 'Migrasi \/ Aset Lama'/)
   assert.match(navigation, /label: 'Penugasan Aktif'/)
   assert.match(navigation, /label: 'Pengembalian Aset'/)
   assert.match(navigation, /label: 'Transfer Penanggung Jawab'/)
