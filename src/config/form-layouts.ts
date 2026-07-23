@@ -239,7 +239,10 @@ const transactionOrders: Record<string, string[]> = {
     'notes',
   ],
   CreateItemUsage: [
+    'issue_mode',
+    'source_request_id',
     'warehouse_id',
+    'location_id',
     'reference_no',
     'usage_type',
     'responsibility_type',
@@ -253,6 +256,10 @@ const transactionOrders: Record<string, string[]> = {
     'notes',
   ],
   UpdateItemUsage: [
+    'issue_mode',
+    'source_request_id',
+    'warehouse_id',
+    'location_id',
     'reference_no',
     'usage_type',
     'responsibility_type',

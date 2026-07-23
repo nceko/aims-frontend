@@ -40,6 +40,12 @@ const displayDescription = computed(() =>
   String(route.meta.pageDescription ?? definition.value?.description ?? ''),
 )
 const createButtonLabel = computed(() => String(route.meta.createLabel ?? 'Tambah'))
+const routeListQuery = computed<Record<string, unknown>>(() => {
+  const value = route.meta.listQuery
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+})
 const createDefaults = computed<Record<string, unknown>>(() => {
   const value = route.meta.createDefaults
   const routeDefaults =
@@ -74,6 +80,10 @@ const formDescription = computed(() => {
   const title = displayTitle.value.toLocaleLowerCase('id-ID')
   if (formMode.value === 'create') return `Lengkapi informasi untuk menambahkan ${title}.`
   if (formMode.value === 'edit') return `Perbarui informasi ${title} yang dipilih.`
+  if (activeAction.value?.operationId === 'ConfirmDeliveryOrderPicking')
+    return 'Periksa barang yang sudah diambil dari rak. Quantity mengikuti Surat Jalan dan tidak perlu diisi ulang.'
+  if (activeAction.value?.operationId === 'ConfirmDeliveryOrderPacking')
+    return 'Periksa barang yang sudah dikemas. Setelah disimpan, lanjutkan melalui Scan Barang Keluar.'
   if (activeAction.value?.label)
     return `Lengkapi data untuk proses ${activeAction.value.label.toLocaleLowerCase('id-ID')}.`
   return 'Lengkapi informasi yang diperlukan untuk melanjutkan proses.'
@@ -86,17 +96,47 @@ const formFieldOrder = computed<string[]>(() => {
   )
 })
 
+const formGroupingContext = computed(
+  () =>
+    `${definition.value?.key ?? ''} ${displayTitle.value} ${formOperation.value?.operationId ?? ''}`,
+)
+
+const deliveryOrderReadyStatuses = new Set([
+  'APPROVED',
+  'PROCESSING_DELIVERY',
+  'PARTIALLY_FULFILLED',
+  'SHIPPED',
+])
+
 const formDisabledFields = computed<string[]>(() => {
-  if (auth.isSuperAdmin) return []
   const properties = formOperation.value?.body?.properties ?? {}
-  return [
-    'company_id',
-    'id_company',
-    'category_group_id',
-    'location_id',
-    'requester_location_id',
-    'reported_by_location_id',
-  ].filter((field) => field in properties)
+  const disabled = new Set<string>()
+  if (!auth.isSuperAdmin) {
+    for (const field of [
+      'company_id',
+      'id_company',
+      'category_group_id',
+      'location_id',
+      'requester_location_id',
+      'reported_by_location_id',
+    ]) {
+      if (field in properties) disabled.add(field)
+    }
+  }
+  if (
+    definition.value?.key === 'item-usages' &&
+    String(formModel.value.issue_mode ?? '').toUpperCase() === 'REQUEST'
+  ) {
+    for (const field of ['warehouse_id', 'location_id']) {
+      if (field in properties) disabled.add(field)
+    }
+  }
+  if (definition.value?.key === 'delivery-orders') {
+    for (const field of ['from_warehouse_id', 'to_warehouse_id']) {
+      if (field in properties) disabled.add(field)
+    }
+  }
+  return [...disabled]
 })
 
 function activeCompanyId(): number | undefined {
@@ -266,8 +306,97 @@ const detailSummary = computed<unknown>(() => {
   const summary = { ...source }
   if (definition.value?.key === 'category-groups') delete summary.categories
   if (definition.value?.key === 'roles') delete summary.permissions
+  if (definition.value?.key === 'users') return userDetailSummary(summary)
   return summary
 })
+
+function userDetailSummary(source: Record<string, unknown>): Record<string, unknown> {
+  const summary = { ...source }
+  const access = asRecord(summary.access)
+  const companies = (Array.isArray(access.companies) ? access.companies : []).map(asRecord)
+
+  const derivedContextualRoles = companies.flatMap((company) =>
+    (Array.isArray(company.category_groups) ? company.category_groups : []).flatMap((rawGroup) => {
+      const group = asRecord(rawGroup)
+      return (Array.isArray(group.roles) ? group.roles : []).map((rawRole) => {
+        const role = asRecord(rawRole)
+        return {
+          company_code: company.company_code,
+          company_name: company.company_name,
+          category_group_code: group.category_group_code,
+          category_group_name: group.category_group_name,
+          role_code: role.role_code ?? role.code,
+          role_name: role.role_name ?? role.name,
+          description: role.description,
+        }
+      })
+    }),
+  )
+
+  const contextualRoles = Array.isArray(summary.contextual_roles)
+    ? summary.contextual_roles
+    : derivedContextualRoles
+  const systemRoles = Array.isArray(summary.system_roles)
+    ? summary.system_roles
+    : Array.isArray(access.system_roles)
+      ? access.system_roles
+      : Array.isArray(summary.roles)
+        ? summary.roles
+        : []
+
+  const companyRows = companies.map((company) => ({
+    company_code: company.company_code,
+    company_name: company.company_name,
+    is_default: company.is_default,
+    scope_mode: company.scope_mode,
+    location_count: Array.isArray(company.locations) ? company.locations.length : 0,
+    category_group_count: Array.isArray(company.category_groups)
+      ? company.category_groups.length
+      : 0,
+  }))
+  const locationRows = companies.flatMap((company) =>
+    (Array.isArray(company.locations) ? company.locations : []).map((rawLocation) => {
+      const location = asRecord(rawLocation)
+      return {
+        company_code: company.company_code,
+        location_code: location.location_code,
+        location_name: location.location_name,
+      }
+    }),
+  )
+  const categoryGroupRows = companies.flatMap((company) =>
+    (Array.isArray(company.category_groups) ? company.category_groups : []).map((rawGroup) => {
+      const group = asRecord(rawGroup)
+      const roleNames = (Array.isArray(group.roles) ? group.roles : [])
+        .map((rawRole) => {
+          const role = asRecord(rawRole)
+          return String(role.role_name ?? role.name ?? '').trim()
+        })
+        .filter(Boolean)
+      return {
+        company_code: company.company_code,
+        category_group_code: group.category_group_code,
+        category_group_name: group.category_group_name,
+        is_default: group.is_default,
+        role_names: roleNames.join(', ') || 'Belum diberi peran',
+      }
+    }),
+  )
+
+  delete summary.roles
+  delete summary.system_roles
+  delete summary.contextual_roles
+  delete summary.access
+
+  return {
+    ...summary,
+    contextual_roles: contextualRoles,
+    system_roles: systemRoles,
+    companies: companyRows,
+    locations: locationRows,
+    category_groups: categoryGroupRows,
+  }
+}
 
 const categoryGroupCategories = computed<unknown>(() => {
   if (definition.value?.key !== 'category-groups') return []
@@ -278,6 +407,19 @@ const categoryGroupCategories = computed<unknown>(() => {
 
 function rowId(row: Record<string, unknown>): string | number | undefined {
   return resolveResourceId(row, definition.value?.idCandidates ?? ['id'])
+}
+function uniqueRowsByResourceID(
+  items: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const seen = new Set<string>()
+  return items.filter((row) => {
+    const id = rowId(row)
+    if (id === undefined || id === null || id === '') return true
+    const key = String(id)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 function rowStatus(row: Record<string, unknown>): string {
   for (const key of definition.value?.statusCandidates ?? ['status']) {
@@ -299,6 +441,16 @@ function displayValue(value: unknown): string {
   }
   if (typeof value === 'object') return Array.isArray(value) ? `${value.length} data` : 'Detail'
   return String(value)
+}
+function procurementRouteLabel(value: unknown): string {
+  const route = String(value ?? '').toUpperCase()
+  const labels: Record<string, string> = {
+    CENTRAL_STOCK: 'Stok Pusat',
+    LOCAL_STOCK: 'Stok Daerah',
+    CENTRAL_REQUEST: 'Request · Pengadaan Pusat',
+    LOCAL_REQUEST: 'Request · Pembelian Daerah',
+  }
+  return labels[route] ?? displayValue(value)
 }
 function auditActionLabel(value: unknown): string {
   const text = String(value ?? '').trim()
@@ -407,12 +559,14 @@ async function load() {
         page_size: perPage.value,
         search: search.value || undefined,
         ...(currentListView.value?.query ?? {}),
+        ...routeListQuery.value,
         ...query,
       },
     })
-    rows.value = normalizeList<Record<string, unknown>>(payload)
+    const loadedRows = normalizeList<Record<string, unknown>>(payload)
+    rows.value = uniqueRowsByResourceID(loadedRows)
     total.value = extractTotal(payload)
-    hasMore.value = rows.value.length >= perPage.value
+    hasMore.value = loadedRows.length >= perPage.value
     await maybeOpenRequestedDocument()
   } catch (cause) {
     rows.value = []
@@ -710,6 +864,16 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
     await router.push(`/inventory/delivery-orders/${encodeURIComponent(String(id))}/${scanPath}`)
     return
   }
+  if (action.handler === 'item-usage-scan') {
+    if (!row) return
+    const id = rowId(row)
+    if (id === undefined) {
+      error.value = 'ID pengeluaran barang tidak ditemukan.'
+      return
+    }
+    await router.push(`/inventory/item-usages/${encodeURIComponent(String(id))}/scan`)
+    return
+  }
   if (action.handler === 'generate-qr-labels') {
     await openGoodsReceiptQrLabels(row, true)
     return
@@ -748,23 +912,33 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
               await executeOperation('FindUserAccess', { path: { id: String(id) } }),
             )
             source = {
+              system_role_ids: (Array.isArray(current.system_roles) ? current.system_roles : [])
+                .map((raw) => String(asRecord(raw).role_id ?? ''))
+                .filter(Boolean),
               companies: (Array.isArray(current.companies) ? current.companies : []).map((raw) => {
                 const company = asRecord(raw)
                 return {
                   company_id: Number(company.company_id),
                   is_default: Boolean(company.is_default),
                   scope_mode: String(company.scope_mode || 'LOCATION_TREE'),
+                  location_ids: (Array.isArray(company.locations) ? company.locations : [])
+                    .map((location) => Number(asRecord(location).location_id))
+                    .filter((value) => Number.isFinite(value) && value > 0),
+                  category_groups: (Array.isArray(company.category_groups)
+                    ? company.category_groups
+                    : []
+                  ).map((rawGroup) => {
+                    const group = asRecord(rawGroup)
+                    return {
+                      category_group_id: Number(group.category_group_id),
+                      is_default: Boolean(group.is_default),
+                      role_ids: (Array.isArray(group.roles) ? group.roles : [])
+                        .map((role) => String(asRecord(role).role_id ?? ''))
+                        .filter(Boolean),
+                    }
+                  }),
                 }
               }),
-              location_ids: (Array.isArray(current.locations) ? current.locations : [])
-                .map((raw) => Number(asRecord(raw).location_id))
-                .filter((value) => Number.isFinite(value) && value > 0),
-              category_group_ids: (Array.isArray(current.category_groups)
-                ? current.category_groups
-                : []
-              )
-                .map((raw) => Number(asRecord(raw).category_group_id))
-                .filter((value) => Number.isFinite(value) && value > 0),
             }
           } else if (action.operationId === 'AssignUserCategoryGroups') {
             const current = normalizeList<Record<string, unknown>>(
@@ -826,6 +1000,15 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
                 const line = asRecord(raw)
                 return {
                   request_line_id: line.request_line_id,
+                  item_id: line.item_id,
+                  item_code: line.item_code,
+                  item_name: line.item_name,
+                  part_number: line.part_number,
+                  uom_code: line.uom_code,
+                  uom_name: line.uom_name,
+                  requested_qty: line.requested_qty,
+                  available_stock_qty: line.available_stock_qty,
+                  line_status: line.line_status,
                   approved_qty:
                     asNumber(line.approved_qty) > 0
                       ? asNumber(line.approved_qty)
@@ -851,6 +1034,16 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
                   : asNumber(line.picked_qty) || requested
                 return {
                   delivery_line_id: line.delivery_line_id,
+                  item_id: line.item_id,
+                  item_code: line.item_code,
+                  item_name: line.item_name,
+                  tracking_type: line.tracking_type,
+                  part_number: line.part_number,
+                  uom_code: line.uom_code,
+                  uom_name: line.uom_name,
+                  requested_qty: requested,
+                  picked_qty: line.picked_qty,
+                  packed_qty: line.packed_qty,
                   qty: defaultQty,
                 }
               }),
@@ -876,7 +1069,16 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
         }
       }
     }
-    formModel.value = mergeModel(operation.body, source) as Record<string, unknown>
+    const mergedModel = mergeModel(operation.body, source) as Record<string, unknown>
+    if (action.operationId === 'ApproveItemRequest') {
+      const approvalLines = asRecord(source).lines
+      if (Array.isArray(approvalLines)) {
+        // Kolom identitas barang hanya dipakai untuk tampilan. cleanPayload tetap
+        // mengirim request_line_id dan approved_qty sesuai kontrak API.
+        mergedModel.lines = approvalLines
+      }
+    }
+    formModel.value = mergedModel
     showForm.value = true
     return
   }
@@ -920,6 +1122,39 @@ async function runAction(
 }
 async function submitForm() {
   if (!formOperation.value || !definition.value) return
+  if (formMode.value === 'create' && definition.value.key === 'delivery-orders') {
+    const requestStatus = String(formModel.value._delivery_request_status ?? '').toUpperCase()
+    const fromWarehouseID = asNumber(formModel.value.from_warehouse_id)
+    const toWarehouseID = asNumber(formModel.value.to_warehouse_id)
+    const lines = Array.isArray(formModel.value.lines) ? formModel.value.lines : []
+    if (!deliveryOrderReadyStatuses.has(requestStatus)) {
+      error.value =
+        requestStatus === 'STOCK_AVAILABLE'
+          ? 'Permintaan baru selesai dicek stok. Jalankan Setujui terlebih dahulu sebelum membuat Surat Jalan.'
+          : `Permintaan berstatus ${requestStatus || 'belum diketahui'} dan belum dapat dibuatkan Surat Jalan.`
+      return
+    }
+    if (!fromWarehouseID || !toWarehouseID) {
+      error.value =
+        'Gudang asal atau gudang tujuan belum termuat. Pilih ulang permintaan barang lalu tunggu detailnya selesai dimuat.'
+      return
+    }
+    if (fromWarehouseID === toWarehouseID) {
+      error.value =
+        'Gudang asal dan tujuan sama. Gunakan menu Pemakaian Lokal untuk permintaan dalam satu gudang.'
+      return
+    }
+    if (
+      lines.length === 0 ||
+      lines.some((raw) => {
+        const line = asRecord(raw)
+        return !asNumber(line.request_line_id) || asNumber(line.qty) <= 0
+      })
+    ) {
+      error.value = 'Barang yang dikirim belum lengkap atau jumlah kirim belum valid.'
+      return
+    }
+  }
   const body = cleanPayload(formOperation.value.body ?? undefined, formModel.value, true)
   saving.value = true
   error.value = ''
@@ -954,7 +1189,7 @@ function asNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 async function hydrateTransactionReference(
-  kind: 'po' | 'request' | 'usage-request',
+  kind: 'po' | 'request' | 'purchase-request' | 'usage-request',
   value: unknown,
 ) {
   if (formMode.value !== 'create' || value === '' || value === null || value === undefined) return
@@ -1009,6 +1244,56 @@ async function hydrateTransactionReference(
       const request = asRecord(
         await executeOperation('FindItemRequestByID', { path: { id: String(value) } }),
       )
+      const requestStatus = String(request.status ?? '').toUpperCase()
+      const fulfillmentWarehouseID = asNumber(request.fulfillment_warehouse_id)
+      const requesterWarehouseID = asNumber(request.requester_warehouse_id)
+      if (!deliveryOrderReadyStatuses.has(requestStatus)) {
+        formModel.value = {
+          ...formModel.value,
+          request_id: request.request_id ?? value,
+          _delivery_request_status: requestStatus,
+          from_warehouse_id: fulfillmentWarehouseID || '',
+          from_warehouse_name: request.fulfillment_warehouse ?? '',
+          to_warehouse_id: requesterWarehouseID || '',
+          to_warehouse_name: request.requester_warehouse ?? '',
+          lines: [],
+        }
+        formHint.value =
+          requestStatus === 'STOCK_AVAILABLE'
+            ? 'Stok sudah tersedia, tetapi permintaan belum disetujui. Jalankan tindakan Setujui pada Permintaan Barang terlebih dahulu.'
+            : `Permintaan berstatus ${requestStatus || 'belum diketahui'} dan belum dapat dibuatkan Surat Jalan.`
+        return
+      }
+      if (!fulfillmentWarehouseID || !requesterWarehouseID) {
+        formModel.value = {
+          ...formModel.value,
+          request_id: request.request_id ?? value,
+          _delivery_request_status: requestStatus,
+          from_warehouse_id: fulfillmentWarehouseID || '',
+          from_warehouse_name: request.fulfillment_warehouse ?? '',
+          to_warehouse_id: requesterWarehouseID || '',
+          to_warehouse_name: request.requester_warehouse ?? '',
+          lines: [],
+        }
+        formHint.value =
+          'Permintaan belum memiliki gudang pemenuh atau gudang pemohon. Jalankan Cek Stok dan periksa master gudang terlebih dahulu.'
+        return
+      }
+      if (fulfillmentWarehouseID === requesterWarehouseID) {
+        formModel.value = {
+          ...formModel.value,
+          request_id: request.request_id ?? value,
+          _delivery_request_status: requestStatus,
+          from_warehouse_id: fulfillmentWarehouseID,
+          from_warehouse_name: request.fulfillment_warehouse ?? '',
+          to_warehouse_id: requesterWarehouseID,
+          to_warehouse_name: request.requester_warehouse ?? '',
+          lines: [],
+        }
+        formHint.value =
+          'Gudang pemenuh sama dengan gudang pemohon. Proses permintaan ini melalui menu Pemakaian Lokal, bukan Surat Jalan.'
+        return
+      }
       const lines = Array.isArray(request.lines)
         ? request.lines
             .map((raw) => {
@@ -1016,24 +1301,121 @@ async function hydrateTransactionReference(
               const remaining =
                 asNumber(line.remaining_qty) ||
                 Math.max(0, asNumber(line.approved_qty) - asNumber(line.shipped_qty))
-              return { request_line_id: line.request_line_id, qty: remaining, notes: '' }
+              return {
+                request_line_id: line.request_line_id,
+                item_id: line.item_id,
+                item_code: line.item_code,
+                item_name: line.item_name,
+                tracking_type: line.tracking_type,
+                part_number: line.part_number,
+                uom_code: line.uom_code,
+                uom_name: line.uom_name,
+                requested_qty: line.requested_qty,
+                approved_qty: line.approved_qty,
+                shipped_qty: line.shipped_qty,
+                remaining_qty: remaining,
+                lot_locked: Boolean(line.lot_no),
+                lot_no: line.lot_no || undefined,
+                qty: remaining,
+                notes: '',
+              }
             })
             .filter((line) => asNumber(line.qty) > 0)
         : []
       formModel.value = {
         ...formModel.value,
         request_id: request.request_id ?? value,
-        to_warehouse_id: request.requester_warehouse_id,
+        _delivery_request_status: requestStatus,
+        from_warehouse_id: fulfillmentWarehouseID,
+        from_warehouse_name: request.fulfillment_warehouse ?? '',
+        to_warehouse_id: requesterWarehouseID,
+        to_warehouse_name: request.requester_warehouse ?? '',
         lines,
       }
       formHint.value = lines.length
-        ? `${lines.length} baris permintaan dimuat otomatis. Pilih warehouse asal dan periksa quantity pengiriman.`
+        ? `${lines.length} barang dimuat otomatis. Gudang asal diambil dari gudang pemenuh dan gudang tujuan dari gudang pemohon. Keduanya dikunci agar rute pengiriman tidak menyimpang dari permintaan.`
         : 'Permintaan ini tidak memiliki sisa quantity yang dapat dikirim.'
+    }
+    if (kind === 'purchase-request' && definition.value?.key === 'purchase-orders') {
+      const request = asRecord(
+        await executeOperation('FindItemRequestByID', { path: { id: String(value) } }),
+      )
+      const lines = Array.isArray(request.lines)
+        ? request.lines
+            .map((raw) => {
+              const line = asRecord(raw)
+              const remaining =
+                asNumber(line.remaining_qty) ||
+                Math.max(0, asNumber(line.approved_qty) - asNumber(line.shipped_qty))
+              const shortage = Math.max(0, remaining - asNumber(line.available_stock_qty))
+              return {
+                request_line_id: line.request_line_id,
+                item_id: line.item_id,
+                part_id: line.part_id || undefined,
+                uom_id: line.uom_id,
+                lot_no: line.lot_no || undefined,
+                ordered_qty: shortage,
+                _remaining_qty: remaining,
+                _central_shortage_qty: shortage,
+                unit_price: '',
+                notes: '',
+              }
+            })
+            .filter((line) => asNumber(line.ordered_qty) > 0)
+        : []
+      formModel.value = {
+        ...formModel.value,
+        source_request_id: request.request_id ?? value,
+        warehouse_id: request.fulfillment_warehouse_id,
+        _request_status: request.status,
+        _requester_warehouse_id: request.requester_warehouse_id,
+        _fulfillment_warehouse_id: request.fulfillment_warehouse_id,
+        expected_date: request.needed_date,
+        lines,
+      }
+      formHint.value = lines.length
+        ? `${lines.length} baris dimuat. Gunakan gudang pemenuh untuk pengadaan pusat, atau pilih gudang pemohon untuk pembelian daerah. Pembelian daerah hanya dapat dilakukan setelah status permintaan menjadi Menunggu Pengadaan dan tetap memerlukan persetujuan pusat.`
+        : 'Permintaan ini tidak memiliki sisa quantity yang perlu dibeli.'
     }
     if (kind === 'usage-request' && definition.value?.key === 'item-usages') {
       const request = asRecord(
         await executeOperation('FindItemRequestByID', { path: { id: String(value) } }),
       )
+      const requesterWarehouseID = asNumber(request.requester_warehouse_id)
+      const fulfillmentWarehouseID = asNumber(request.fulfillment_warehouse_id)
+      if (!fulfillmentWarehouseID) {
+        formModel.value = {
+          ...formModel.value,
+          source_request_id: '',
+          warehouse_id: '',
+          warehouse_name: '',
+          location_id: '',
+          location_name: '',
+          lines: [],
+        }
+        formHint.value =
+          'Permintaan ini belum memiliki gudang pemenuh. Jalankan Cek Stok dan persetujuan terlebih dahulu.'
+        return
+      }
+      if (requesterWarehouseID !== fulfillmentWarehouseID) {
+        formModel.value = {
+          ...formModel.value,
+          source_request_id: '',
+          warehouse_id: '',
+          warehouse_name: '',
+          location_id: '',
+          location_name: '',
+          lines: [],
+        }
+        formHint.value = `Permintaan ${String(
+          request.request_no ?? '',
+        )} adalah pengiriman antar lokasi: ${String(
+          request.fulfillment_warehouse ?? 'gudang pemenuh',
+        )} → ${String(
+          request.requester_warehouse ?? 'gudang pemohon',
+        )}. Proses permintaan ini melalui Surat Jalan / Delivery Order, bukan Pengeluaran Berdasarkan Permintaan.`
+        return
+      }
       const lines = Array.isArray(request.lines)
         ? request.lines
             .map((raw) => {
@@ -1048,10 +1430,16 @@ async function hydrateTransactionReference(
               return {
                 request_line_id: line.request_line_id,
                 item_id: line.item_id,
+                item_code: line.item_code,
+                item_name: line.item_name,
                 part_id: line.part_id || undefined,
+                part_number: line.part_number,
                 uom_id: line.uom_id,
+                uom_code: line.uom_code,
+                uom_name: line.uom_name,
                 lot_no: line.lot_no || undefined,
                 qty: remaining,
+                remaining_qty: remaining,
                 notes: '',
               }
             })
@@ -1061,14 +1449,19 @@ async function hydrateTransactionReference(
         ...formModel.value,
         source_request_id: request.request_id ?? value,
         issue_mode: 'REQUEST',
+        warehouse_id: fulfillmentWarehouseID,
+        warehouse_name: request.fulfillment_warehouse ?? '',
         location_id: request.requester_location_id,
+        location_name: request.requester_location ?? request.fulfillment_location ?? '',
         responsibility_type: 'LOCATION',
         responsibility_location_id: request.requester_location_id,
         reference_no: request.request_no,
         lines,
       }
       formHint.value = lines.length
-        ? `${lines.length} baris permintaan dimuat otomatis. Pilih warehouse pengeluaran dan periksa jumlah sebelum menyimpan.`
+        ? `${lines.length} barang dimuat dari permintaan lokal ${String(
+            request.request_no ?? '',
+          )}. Gudang pengeluaran mengikuti gudang pemenuh pada permintaan dan dikunci agar stok tidak terpotong dari gudang yang salah.`
         : 'Permintaan ini tidak memiliki sisa quantity yang dapat dikeluarkan.'
     }
   } catch (cause) {
@@ -1251,8 +1644,75 @@ watch(
 watch(
   () => formModel.value.source_request_id,
   (value) => {
+    if (definition.value?.key === 'purchase-orders') {
+      if (value === '' || value === null || value === undefined) {
+        lastHydratedReference.value = ''
+        const lines = Array.isArray(formModel.value.lines) ? formModel.value.lines : []
+        formModel.value = {
+          ...formModel.value,
+          _request_status: '',
+          _requester_warehouse_id: '',
+          _fulfillment_warehouse_id: '',
+          lines: lines.map((raw) => ({ ...asRecord(raw), request_line_id: '' })),
+        }
+        formHint.value = ''
+      } else {
+        void hydrateTransactionReference('purchase-request', value)
+      }
+    }
     if (definition.value?.key === 'item-usages' && formModel.value.issue_mode === 'REQUEST')
       void hydrateTransactionReference('usage-request', value)
+  },
+)
+
+watch(
+  () => formModel.value.warehouse_id,
+  (value, previous) => {
+    if (
+      definition.value?.key !== 'purchase-orders' ||
+      formMode.value !== 'create' ||
+      !formModel.value.source_request_id ||
+      value === previous
+    )
+      return
+
+    const selectedWarehouseID = asNumber(value)
+    const requesterWarehouseID = asNumber(formModel.value._requester_warehouse_id)
+    const fulfillmentWarehouseID = asNumber(formModel.value._fulfillment_warehouse_id)
+    const isLocalPurchase = selectedWarehouseID > 0 && selectedWarehouseID === requesterWarehouseID
+    const isCentralPurchase =
+      selectedWarehouseID > 0 && selectedWarehouseID === fulfillmentWarehouseID
+
+    if (!isLocalPurchase && !isCentralPurchase) {
+      formHint.value =
+        'Untuk PO berdasarkan permintaan, gudang harus berupa gudang pemenuh pusat atau gudang pemohon daerah.'
+      return
+    }
+
+    const lines = Array.isArray(formModel.value.lines) ? formModel.value.lines : []
+    formModel.value = {
+      ...formModel.value,
+      lines: lines.map((raw) => {
+        const line = asRecord(raw)
+        return {
+          ...line,
+          ordered_qty: isLocalPurchase
+            ? asNumber(line._remaining_qty)
+            : asNumber(line._central_shortage_qty),
+        }
+      }),
+    }
+
+    if (isLocalPurchase) {
+      const status = String(formModel.value._request_status ?? '').toUpperCase()
+      formHint.value = ['WAITING_PURCHASE', 'PARTIALLY_FULFILLED'].includes(status)
+        ? 'Mode pembelian daerah aktif. Barang diterima langsung ke gudang pemohon dan setelah diposting akan memenuhi permintaan tanpa Surat Jalan dari pusat.'
+        : 'Gudang daerah dipilih, tetapi permintaan belum berstatus Menunggu Pengadaan. Pusat harus menjalankan tindakan Tunggu Pengadaan terlebih dahulu.'
+      return
+    }
+
+    formHint.value =
+      'Mode pengadaan pusat aktif. Barang diterima di gudang pemenuh, lalu dikirim ke daerah menggunakan Surat Jalan / Delivery Order.'
   },
 )
 </script>
@@ -1370,6 +1830,9 @@ watch(
             </span>
             <span>{{ displayValue(row.latency_ms) }} ms</span>
           </div>
+          <template v-else-if="column.key === 'procurement_route'">
+            {{ procurementRouteLabel(row[column.key]) }}
+          </template>
           <StatusBadge v-else-if="isStatusColumn(column.key)" :value="row[column.key]" />
           <template v-else>{{ displayValue(row[column.key]) }}</template>
         </template>
@@ -1486,7 +1949,7 @@ watch(
           :field-order="formFieldOrder"
           :disabled-fields="formDisabledFields"
           :option-defaults="formMode === 'create' ? definition?.createOptionDefaults : undefined"
-          :grouping-context="`${definition?.key ?? ''} ${displayTitle}`"
+          :grouping-context="formGroupingContext"
         />
       </form>
       <div v-else class="notice notice--warning">Action ini tidak membutuhkan data tambahan.</div>

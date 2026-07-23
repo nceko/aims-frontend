@@ -189,8 +189,12 @@ export const navigation: NavItem[] = [
         ],
       },
       {
-        label: 'Permintaan & Pengeluaran',
-        permissionAny: ['transaction.item_requests.read', 'transaction.item_usages.read'],
+        label: 'Permintaan & Pemenuhan',
+        permissionAny: [
+          'transaction.item_requests.read',
+          'transaction.item_usages.read',
+          'transaction.delivery_orders.read',
+        ],
         children: [
           {
             label: 'Permintaan Barang',
@@ -198,25 +202,19 @@ export const navigation: NavItem[] = [
             permission: 'transaction.item_requests.read',
           },
           {
-            label: 'Pengeluaran Berdasarkan Permintaan',
+            label: 'Pemakaian Lokal',
             to: '/inventory/item-usages',
             permission: 'transaction.item_usages.read',
+          },
+          {
+            label: 'Pengiriman Antar Lokasi',
+            to: '/inventory/delivery-orders',
+            permission: 'transaction.delivery_orders.read',
           },
           {
             label: 'Pengambilan Langsung',
             to: '/inventory/direct-issues',
             permission: 'transaction.item_usages.read',
-          },
-        ],
-      },
-      {
-        label: 'Distribusi',
-        permissionAny: ['transaction.delivery_orders.read'],
-        children: [
-          {
-            label: 'Surat Jalan / Transfer Antar Gudang',
-            to: '/inventory/delivery-orders',
-            permission: 'transaction.delivery_orders.read',
           },
         ],
       },

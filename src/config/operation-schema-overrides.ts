@@ -21,6 +21,39 @@ const deliveryConfirmationSchema: ApiSchema = {
 }
 
 export const operationSchemaOverrides: Record<string, OperationOverride> = {
+  SetUserAccess: {
+    body: {
+      type: 'object',
+      properties: {
+        system_role_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+        companies: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['company_id'],
+            properties: {
+              company_id: { type: 'integer' },
+              is_default: { type: 'boolean' },
+              scope_mode: { type: 'string', enum: ['COMPANY', 'LOCATION_TREE'] },
+              location_ids: { type: 'array', items: { type: 'integer' } },
+              category_groups: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['category_group_id'],
+                  properties: {
+                    category_group_id: { type: 'integer' },
+                    is_default: { type: 'boolean' },
+                    role_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   CreateItemUsage: {
     body: {
       type: 'object',

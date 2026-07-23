@@ -411,6 +411,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     updatePermission: 'transaction.purchase_orders.update',
     columns: [
       'po_no',
+      'procurement_route',
       'supplier_name',
       'warehouse_name',
       'expected_date',
@@ -420,7 +421,6 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     ],
     idCandidates: ['po_id', 'id'],
     attachmentEntityType: 'PURCHASE_ORDER',
-    createOptionDefaults: { warehouse_id: 'WH-PST' },
     editableStatuses: ['DRAFT'],
     listViews: [
       { key: 'open', label: 'Proses Aktif', query: { lifecycle: 'open' } },
@@ -708,7 +708,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   stocks: crud({
     key: 'stocks',
     title: 'Saldo Stok',
-    description: 'Posisi stok berdasarkan gudang, item, part, lot, dan UOM.',
+    description: 'Ringkasan stok per gudang, barang, part number, dan UOM.',
     group: 'Inventory',
     route: '/inventory/stocks',
     listOperationId: 'FindAllStockBalances',
@@ -719,7 +719,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
       'item_code',
       'item_name',
       'part_number',
-      'lot_no',
+      'lot_count',
       'uom_name',
       'qty_on_hand',
     ],
@@ -805,7 +805,8 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     updatePermission: 'transaction.item_requests.update',
     columns: [
       'request_no',
-      'requester_warehouse_name',
+      'requester_warehouse',
+      'fulfillment_warehouse',
       'needed_date',
       'priority',
       'status',
@@ -830,13 +831,15 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
           'CHECKING_STOCK',
           'STOCK_AVAILABLE',
           'STOCK_UNAVAILABLE',
+          'WAITING_PURCHASE',
+          'PARTIALLY_FULFILLED',
         ],
       },
       {
         operationId: 'ApproveItemRequest',
         label: 'Setujui',
         permission: 'transaction.item_requests.approve',
-        statuses: ['SUBMITTED', 'STOCK_AVAILABLE', 'STOCK_UNAVAILABLE'],
+        statuses: ['STOCK_AVAILABLE', 'STOCK_UNAVAILABLE'],
       },
       {
         operationId: 'RejectItemRequest',
@@ -906,21 +909,21 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
       },
       {
         operationId: 'ConfirmDeliveryOrderPicking',
-        label: 'Konfirmasi Picking',
+        label: 'Selesai Picking',
         permission: 'transaction.delivery_orders.confirm_picking',
         statuses: ['PICKING'],
       },
       {
         operationId: 'ConfirmDeliveryOrderPacking',
-        label: 'Konfirmasi Packing',
+        label: 'Selesai Packing',
         permission: 'transaction.delivery_orders.confirm_packing',
         statuses: ['PACKING'],
       },
       {
         operationId: 'PreviewDeliveryOrderScanOut',
-        label: 'Scan Keluar',
+        label: 'Scan Barang Keluar',
         permission: 'transaction.delivery_orders.scan_out',
-        statuses: ['READY_TO_SHIP'],
+        statuses: ['READY_TO_SHIP', 'SHIPPED'],
         handler: 'delivery-order-scan-out',
       },
       {
@@ -949,7 +952,8 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   'item-usages': crud({
     key: 'item-usages',
     title: 'Pengeluaran Berdasarkan Permintaan',
-    description: 'Catat pengeluaran barang kepada pegawai, divisi, lokasi, atau kendaraan.',
+    description:
+      'Penuhi permintaan lokal dari gudang yang sama, lalu validasi barang melalui scan QR atau konfirmasi quantity.',
     group: 'Inventory',
     route: '/inventory/item-usages',
     listOperationId: 'FindAllItemUsages',
@@ -973,16 +977,11 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
     editableStatuses: ['DRAFT'],
     actions: [
       {
-        operationId: 'PreviewItemUsageScan',
-        label: 'Pratinjau Pemindaian',
-        permission: 'transaction.item_usages.scan',
-        statuses: ['DRAFT'],
-      },
-      {
         operationId: 'PostItemUsage',
-        label: 'Posting',
+        label: 'Proses Scan & Posting',
         permission: 'transaction.item_usages.post',
         statuses: ['DRAFT'],
+        handler: 'item-usage-scan',
       },
       {
         operationId: 'CancelItemUsage',
@@ -1527,21 +1526,9 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
       },
       {
         operationId: 'SetUserAccess',
-        label: 'Atur Akses',
+        label: 'Atur Akses & Peran',
         group: 'Hak Akses',
         permission: 'auth.users.access.update',
-      },
-      {
-        operationId: 'AssignUserCategoryGroups',
-        label: 'Atur Kelompok Kategori',
-        group: 'Hak Akses',
-        permission: 'auth.users.access.update',
-      },
-      {
-        operationId: 'AssignUserRoles',
-        label: 'Atur Peran',
-        group: 'Hak Akses',
-        permission: 'auth.users.roles.update',
       },
     ],
   }),

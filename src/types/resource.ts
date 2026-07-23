@@ -59,6 +59,7 @@ export interface ResourceActionDefinition {
     | 'goods-receipt-scan-in'
     | 'delivery-order-scan-out'
     | 'delivery-order-scan-in'
+    | 'item-usage-scan'
 }
 
 export interface ResourceModuleDefinition {
@@ -135,6 +136,12 @@ export interface FieldResourcePickerSource {
   queryFromModel?: Record<string, string>
   pathFromModel?: Record<string, string>
   fixedQuery?: Record<string, string | number | boolean>
+  /** Batasi hasil picker dengan status bisnis yang memang layak dipilih. */
+  allowedStatuses?: string[]
+  /** Filter tambahan untuk aturan kelayakan yang bergantung pada beberapa kolom hasil. */
+  rowFilter?: (row: Record<string, unknown>) => boolean
+  /** Pesan ketika hasil backend ada, tetapi tidak ada yang memenuhi aturan kelayakan. */
+  filteredEmptyDescription?: string
   selectionEffects?: Record<string, string>
   clearFields?: string[]
 }

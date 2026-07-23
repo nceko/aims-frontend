@@ -10,12 +10,11 @@ export const fieldResourcePickers: Record<string, FieldResourcePickerSource> = {
     description:
       'Pilih permintaan yang sudah disetujui dan masih memiliki quantity yang belum dipenuhi.',
     searchPlaceholder: 'Cari nomor permintaan, warehouse, lokasi, atau status…',
-    fixedQuery: {
-      status: 'APPROVED,STOCK_AVAILABLE,PROCESSING_DELIVERY,PARTIALLY_FULFILLED',
-    },
+    allowedStatuses: ['APPROVED', 'WAITING_PURCHASE', 'PARTIALLY_FULFILLED'],
     columns: [
       { key: 'request_no', label: 'Nomor Permintaan', width: '220px' },
-      { key: 'requester_warehouse', label: 'Warehouse Peminta' },
+      { key: 'requester_warehouse', label: 'Gudang Pemohon' },
+      { key: 'fulfillment_warehouse', label: 'Gudang Pemenuh' },
       { key: 'requester_location', label: 'Lokasi Peminta' },
       { key: 'priority', label: 'Prioritas', width: '110px' },
       { key: 'needed_date', label: 'Tanggal Dibutuhkan' },
@@ -31,12 +30,28 @@ export const fieldResourcePickers: Record<string, FieldResourcePickerSource> = {
     description:
       'Pilih permintaan yang sudah disetujui dan masih memiliki quantity yang dapat dikirim.',
     searchPlaceholder: 'Cari nomor permintaan, warehouse, lokasi, atau status…',
-    fixedQuery: {
-      status: 'APPROVED,STOCK_AVAILABLE,PROCESSING_DELIVERY,PARTIALLY_FULFILLED',
+    allowedStatuses: ['APPROVED', 'PROCESSING_DELIVERY', 'PARTIALLY_FULFILLED', 'SHIPPED'],
+    selectionEffects: {
+      from_warehouse_id: 'fulfillment_warehouse_id',
+      from_warehouse_name: 'fulfillment_warehouse',
+      to_warehouse_id: 'requester_warehouse_id',
+      to_warehouse_name: 'requester_warehouse',
     },
+    rowFilter: (row) => {
+      const requesterWarehouseID = Number(row.requester_warehouse_id)
+      const fulfillmentWarehouseID = Number(row.fulfillment_warehouse_id)
+      return (
+        requesterWarehouseID > 0 &&
+        fulfillmentWarehouseID > 0 &&
+        requesterWarehouseID !== fulfillmentWarehouseID
+      )
+    },
+    filteredEmptyDescription:
+      'Tidak ada permintaan antar gudang yang siap dikirim. Permintaan dengan gudang asal dan tujuan yang sama diproses melalui Pemakaian Lokal.',
     columns: [
       { key: 'request_no', label: 'Nomor Permintaan', width: '220px' },
-      { key: 'requester_warehouse', label: 'Warehouse Tujuan' },
+      { key: 'fulfillment_warehouse', label: 'Gudang Asal' },
+      { key: 'requester_warehouse', label: 'Gudang Tujuan' },
       { key: 'requester_location', label: 'Lokasi Tujuan' },
       { key: 'priority', label: 'Prioritas', width: '110px' },
       { key: 'needed_date', label: 'Tanggal Dibutuhkan' },

@@ -8,7 +8,11 @@ const resourceRoutes: RouteRecordRaw[] = resourceModuleList.map((module) => ({
   name: `resource-${module.key}`,
   component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),
   props: { moduleKey: module.key },
-  meta: { permission: module.readPermission, superAdminOnly: module.superAdminOnly },
+  meta: {
+    permission: module.readPermission,
+    superAdminOnly: module.superAdminOnly,
+    ...(module.key === 'item-usages' ? { listQuery: { issue_mode: 'REQUEST' } } : {}),
+  },
 }))
 
 const router = createRouter({
@@ -54,6 +58,12 @@ const router = createRouter({
           meta: { permission: 'transaction.delivery_orders.receive' },
         },
         {
+          path: 'inventory/item-usages/:id/scan',
+          name: 'item-usage-scan',
+          component: () => import('@/modules/workflow/ItemUsageScanView.vue'),
+          meta: { permission: 'transaction.item_usages.scan' },
+        },
+        {
           path: 'inventory/minimum-low-stock',
           name: 'inventory-minimum-low-stock',
           component: () => import('@/modules/inventory/MinimumStockControlView.vue'),
@@ -68,9 +78,10 @@ const router = createRouter({
             permission: 'transaction.item_usages.read',
             pageTitle: 'Pengambilan Langsung',
             pageDescription:
-              'Catat ATK, tisu, consumable, dan barang habis pakai yang langsung diserahkan kepada pegawai, divisi, lokasi, atau kendaraan.',
+              'Catat barang yang dikeluarkan langsung tanpa permintaan barang sebelumnya, lalu validasi QR atau quantity sebelum posting stok.',
             createLabel: 'Catat Pengambilan',
             createDefaults: { issue_mode: 'DIRECT', usage_type: 'OPERATIONAL' },
+            listQuery: { issue_mode: 'DIRECT' },
           },
         },
         {

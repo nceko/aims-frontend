@@ -691,9 +691,11 @@ test('category group detail only exposes replace selection workflow', () => {
 
 test('inventory navigation follows stock request distribution and control workflows', () => {
   assert.match(navigation, /label: 'Persediaan'/)
-  assert.match(navigation, /label: 'Permintaan & Pengeluaran'/)
+  assert.match(navigation, /label: 'Permintaan & Pemenuhan'/)
+  assert.match(navigation, /label: 'Pemakaian Lokal'/)
+  assert.match(navigation, /label: 'Pengiriman Antar Lokasi'/)
   assert.match(navigation, /label: 'Pengambilan Langsung'/)
-  assert.match(navigation, /label: 'Distribusi'/)
+  assert.doesNotMatch(navigation, /label: 'Distribusi'/)
   assert.match(navigation, /label: 'Kontrol Stok'/)
   assert.match(navigation, /label: 'Rekonsiliasi Stok'/)
   assert.match(navigation, /label: 'Pemeliharaan Sistem'/)
@@ -749,7 +751,7 @@ test('reports are grouped by business area and procurement/audit endpoints are i
 })
 
 test('transaction actions use backend workflow statuses without legacy aliases', () => {
-  assert.match(modules, /statuses: \['READY_TO_SHIP'\]/)
+  assert.match(modules, /statuses: \['READY_TO_SHIP', 'SHIPPED'\]/)
   assert.match(modules, /statuses: \['SHIPPED', 'PARTIALLY_RECEIVED'\]/)
   assert.match(modules, /statuses: \['RECEIVED_BY_DESTINATION'\]/)
   assert.match(modules, /statuses: \['COUNTING'\]/)

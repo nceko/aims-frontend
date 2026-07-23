@@ -4,8 +4,13 @@ import { Plus, Trash2 } from '@lucide/vue'
 import ApiOptionField from './ApiOptionField.vue'
 import ApiResourcePicker from './ApiResourcePicker.vue'
 import PurchaseOrderLinesField from './PurchaseOrderLinesField.vue'
+import ItemRequestApprovalLinesField from './ItemRequestApprovalLinesField.vue'
+import ItemRequestLinesField from './ItemRequestLinesField.vue'
+import ItemUsageRequestLinesField from './ItemUsageRequestLinesField.vue'
+import DeliveryOrderRequestLinesField from './DeliveryOrderRequestLinesField.vue'
+import DeliveryOrderConfirmationLinesField from './DeliveryOrderConfirmationLinesField.vue'
 import PermissionCheckboxField from './PermissionCheckboxField.vue'
-import type { ApiSchema } from '@/types/resource'
+import type { ApiSchema, FieldResourcePickerSource } from '@/types/resource'
 import { fieldOptionSources, humanizeField } from '@/config/field-options'
 import { fieldResourcePickers } from '@/config/field-resource-pickers'
 import { initialValue, inputType, isLongTextField } from '@/utils/schema'
@@ -41,8 +46,24 @@ const requiredFields = computed(() => new Set(props.schema.required ?? []))
 function fieldVisible(key: string): boolean {
   const model = contextModel.value
   const issueMode = String(model.issue_mode ?? '').toUpperCase()
-  if (key === 'source_request_id' && issueMode !== 'REQUEST') return false
-  if (key === 'request_line_id' && issueMode !== 'REQUEST') return false
+  const itemUsageContext = props.groupingContext.includes('item-usages')
+  if (itemUsageContext && key === 'source_request_id' && issueMode !== 'REQUEST') return false
+  if (itemUsageContext && key === 'request_line_id' && issueMode !== 'REQUEST') return false
+  if (itemUsageContext && key === 'issue_mode') return false
+  if (
+    itemUsageContext &&
+    issueMode === 'REQUEST' &&
+    [
+      'reference_no',
+      'responsibility_type',
+      'responsibility_location_id',
+      'responsibility_division_id',
+      'responsibility_employee_id',
+      'responsibility_vehicle_id',
+    ].includes(key)
+  ) {
+    return false
+  }
 
   const responsibilityType = String(model.responsibility_type ?? '').toUpperCase()
   const responsibilityFields: Record<string, string> = {
@@ -85,11 +106,81 @@ function fieldDisabled(name: string): boolean {
   return props.disabled || props.disabledFields.includes(name)
 }
 
+function fieldLabel(name: string): string {
+  const context = props.groupingContext.toLocaleLowerCase('id-ID')
+  if (context.includes('checkitemrequeststock') && name === 'warehouse_id') {
+    return 'Gudang Sumber Stok'
+  }
+  if (context.includes('item-usages')) {
+    if (name === 'warehouse_id') return 'Gudang Pengeluaran'
+    if (name === 'location_id') return 'Lokasi Pengeluaran'
+    if (name === 'usage_type') return 'Jenis Penggunaan'
+    if (name === 'source_request_id') return 'Permintaan Barang'
+  }
+  return humanizeField(name)
+}
+
+function fieldHint(name: string, schema: ApiSchema): string {
+  const context = props.groupingContext.toLocaleLowerCase('id-ID')
+  const issueMode = String(contextModel.value.issue_mode ?? '').toUpperCase()
+  if (context.includes('item-usages') && issueMode === 'REQUEST') {
+    if (name === 'warehouse_id') {
+      return 'Ditentukan otomatis dari gudang pemenuh pada permintaan dan dikunci agar stok keluar dari gudang yang benar.'
+    }
+    if (name === 'location_id') {
+      return 'Mengikuti lokasi permintaan lokal dan tidak dapat diubah pada proses ini.'
+    }
+  }
+  if (context.includes('delivery-orders')) {
+    if (name === 'from_warehouse_id') {
+      return 'Otomatis mengikuti gudang pemenuh pada permintaan.'
+    }
+    if (name === 'to_warehouse_id') {
+      return 'Otomatis mengikuti gudang pemohon pada permintaan.'
+    }
+  }
+  return schema.description ?? ''
+}
+
 function update(key: string, value: unknown) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 function hasResourcePicker(name: string): boolean {
   return Boolean(fieldResourcePickers[name])
+}
+function resourcePickerSource(name: string): FieldResourcePickerSource | undefined {
+  const source = fieldResourcePickers[name]
+  if (!source || name !== 'source_request_id') return source
+  if (props.groupingContext.includes('purchase-orders')) {
+    return {
+      ...source,
+      title: 'Pilih Permintaan yang Memerlukan Pengadaan',
+      description:
+        'Permintaan yang kekurangan stok akan dihubungkan ke PO agar otomatis kembali siap dipenuhi setelah barang diterima.',
+      allowedStatuses: ['WAITING_PURCHASE', 'APPROVED', 'PARTIALLY_FULFILLED'],
+    }
+  }
+  if (props.groupingContext.includes('item-usages')) {
+    return {
+      ...source,
+      title: 'Pilih Permintaan Siap Dikeluarkan',
+      description:
+        'Hanya permintaan lokal yang gudang pemohon dan gudang pemenuhnya sama. Permintaan antar lokasi diproses melalui Surat Jalan / Delivery Order.',
+      allowedStatuses: ['APPROVED', 'STOCK_AVAILABLE', 'PARTIALLY_FULFILLED'],
+      rowFilter: (row) => {
+        const requesterWarehouseID = Number(row.requester_warehouse_id)
+        const fulfillmentWarehouseID = Number(row.fulfillment_warehouse_id)
+        return (
+          requesterWarehouseID > 0 &&
+          fulfillmentWarehouseID > 0 &&
+          requesterWarehouseID === fulfillmentWarehouseID
+        )
+      },
+      filteredEmptyDescription:
+        'Tidak ada permintaan lokal yang siap dikeluarkan. Jika gudang pemenuh berbeda dari gudang pemohon, gunakan Surat Jalan / Delivery Order.',
+    }
+  }
+  return source
 }
 function hasOptions(name: string, schema: ApiSchema): boolean {
   return Boolean(fieldOptionSources[name] || schema.enum?.length)
@@ -101,8 +192,50 @@ function isPurchaseOrderLines(name: string, schema: ApiSchema): boolean {
     Boolean(schema.items?.properties?.ordered_qty)
   )
 }
+function isItemRequestApprovalLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    Boolean(schema.items?.ref?.includes('ApproveItemRequestLine')) &&
+    Boolean(schema.items?.properties?.approved_qty)
+  )
+}
+function isItemRequestLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    Boolean(schema.items?.ref?.includes('CreateItemRequestLine')) &&
+    Boolean(schema.items?.properties?.requested_qty)
+  )
+}
+function isItemUsageRequestLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    props.groupingContext.includes('item-usages') &&
+    String(contextModel.value.issue_mode ?? '').toUpperCase() === 'REQUEST' &&
+    Boolean(schema.items?.ref?.includes('CreateItemUsageLine'))
+  )
+}
+function isDeliveryOrderRequestLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    props.groupingContext.includes('delivery-orders') &&
+    Boolean(schema.items?.ref?.includes('CreateDeliveryOrderLine'))
+  )
+}
+function isDeliveryOrderConfirmationLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    props.groupingContext.includes('delivery-orders') &&
+    (props.groupingContext.includes('ConfirmDeliveryOrderPicking') ||
+      props.groupingContext.includes('ConfirmDeliveryOrderPacking')) &&
+    Boolean(schema.items?.properties?.delivery_line_id) &&
+    Boolean(schema.items?.properties?.qty)
+  )
+}
+function deliveryConfirmationStage(): 'picking' | 'packing' {
+  return props.groupingContext.includes('ConfirmDeliveryOrderPacking') ? 'packing' : 'picking'
+}
 function applyResourceSelection(name: string, row: Record<string, unknown>) {
-  const source = fieldResourcePickers[name]
+  const source = resourcePickerSource(name)
   if (!source) return
   const patch: Record<string, unknown> = {
     [name]: row[source.valueKey],
@@ -165,7 +298,7 @@ function updatePrimitiveArray(key: string, event: Event) {
       <div class="schema-form-grid">
         <template v-for="[name, child] in group.entries" :key="name">
           <fieldset v-if="name === 'permission_ids'" class="schema-fieldset schema-fieldset--full">
-            <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
+            <legend>{{ fieldLabel(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
             <PermissionCheckboxField
               :model-value="modelValue[name]"
               :disabled="fieldDisabled(name)"
@@ -177,7 +310,7 @@ function updatePrimitiveArray(key: string, event: Event) {
             v-else-if="child.type === 'object' || child.properties"
             class="schema-fieldset schema-fieldset--full"
           >
-            <legend>{{ humanizeField(name) }}</legend>
+            <legend>{{ fieldLabel(name) }}</legend>
             <SchemaFields
               :schema="child"
               :model-value="(modelValue[name] as Record<string, unknown>) || {}"
@@ -193,15 +326,99 @@ function updatePrimitiveArray(key: string, event: Event) {
             v-else-if="
               child.type === 'array' &&
               child.items?.type === 'object' &&
+              isItemRequestApprovalLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>Barang yang Disetujui <b v-if="requiredFields.has(name)">*</b></legend>
+            <ItemRequestApprovalLinesField
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :disabled="fieldDisabled(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
+              isItemRequestLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>Daftar Barang Diminta <b v-if="requiredFields.has(name)">*</b></legend>
+            <ItemRequestLinesField
+              :schema="child.items"
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :disabled="fieldDisabled(name)"
+              :required="requiredFields.has(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
+              isItemUsageRequestLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>Barang yang Dikeluarkan <b v-if="requiredFields.has(name)">*</b></legend>
+            <ItemUsageRequestLinesField
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :disabled="fieldDisabled(name)"
+              :required="requiredFields.has(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
+              isDeliveryOrderConfirmationLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>Daftar Barang <b v-if="requiredFields.has(name)">*</b></legend>
+            <DeliveryOrderConfirmationLinesField
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :stage="deliveryConfirmationStage()"
+              :disabled="fieldDisabled(name)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
+              isDeliveryOrderRequestLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>Barang yang Dikirim <b v-if="requiredFields.has(name)">*</b></legend>
+            <DeliveryOrderRequestLinesField
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :disabled="fieldDisabled(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
               isPurchaseOrderLines(name, child)
             "
             class="schema-fieldset schema-fieldset--full"
           >
-            <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
+            <legend>{{ fieldLabel(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
             <PurchaseOrderLinesField
               :schema="child.items"
               :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
               :supplier-id="contextModel.supplier_id"
+              :source-request-id="contextModel.source_request_id"
               :disabled="fieldDisabled(name)"
               :required="requiredFields.has(name)"
               @update:model-value="update(name, $event)"
@@ -212,7 +429,7 @@ function updatePrimitiveArray(key: string, event: Event) {
             v-else-if="child.type === 'array' && child.items?.type === 'object'"
             class="schema-fieldset schema-fieldset--full"
           >
-            <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
+            <legend>{{ fieldLabel(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
             <div class="repeatable-list">
               <article
                 v-for="(item, index) in (modelValue[name] as unknown[]) || []"
@@ -220,7 +437,7 @@ function updatePrimitiveArray(key: string, event: Event) {
                 class="repeatable-item"
               >
                 <div class="repeatable-item__header">
-                  <strong>{{ humanizeField(name) }} #{{ index + 1 }}</strong
+                  <strong>{{ fieldLabel(name) }} #{{ index + 1 }}</strong
                   ><button
                     type="button"
                     class="icon-button icon-button--danger"
@@ -235,6 +452,9 @@ function updatePrimitiveArray(key: string, event: Event) {
                   :model-value="(item as Record<string, unknown>) || {}"
                   :root-model="{ ...contextModel, ...((item as Record<string, unknown>) || {}) }"
                   :disabled="disabled"
+                  :disabled-fields="disabledFields"
+                  :grouping-context="groupingContext"
+                  nested
                   @update:model-value="updateArrayItem(name, index, $event)"
                 />
               </article>
@@ -244,7 +464,7 @@ function updatePrimitiveArray(key: string, event: Event) {
                 :disabled="disabled"
                 @click="addArrayItem(name, child)"
               >
-                <Plus :size="16" /> Tambah {{ humanizeField(name) }}
+                <Plus :size="16" /> Tambah {{ fieldLabel(name) }}
               </button>
             </div>
           </fieldset>
@@ -255,14 +475,14 @@ function updatePrimitiveArray(key: string, event: Event) {
             :class="{ 'field--full': isLongTextField(name) || child.type === 'array' }"
           >
             <span class="field__label"
-              >{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></span
+              >{{ fieldLabel(name) }} <b v-if="requiredFields.has(name)">*</b></span
             >
             <ApiResourcePicker
               v-if="hasResourcePicker(name)"
               :field-name="name"
               :model-value="modelValue[name]"
               :root-model="contextModel"
-              :source="fieldResourcePickers[name]!"
+              :source="resourcePickerSource(name)!"
               :required="requiredFields.has(name)"
               :disabled="fieldDisabled(name)"
               @update:model-value="update(name, $event)"
@@ -320,7 +540,9 @@ function updatePrimitiveArray(key: string, event: Event) {
               placeholder="Pisahkan dengan koma"
               @input="updatePrimitiveArray(name, $event)"
             />
-            <small v-if="child.description" class="field__hint">{{ child.description }}</small>
+            <small v-if="fieldHint(name, child)" class="field__hint">{{
+              fieldHint(name, child)
+            }}</small>
           </label>
         </template>
       </div>

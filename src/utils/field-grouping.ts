@@ -50,6 +50,50 @@ type GroupCopy = Partial<Record<FieldGroupKey, { title: string; description: str
 
 const CONTEXT_GROUP_COPY: Array<{ match: RegExp; copy: GroupCopy }> = [
   {
+    match: /CheckItemRequestStock/i,
+    copy: {
+      context: {
+        title: 'Gudang Sumber Stok',
+        description:
+          'Pilih gudang yang stoknya akan diperiksa dan yang akan menjadi gudang pemenuh.',
+      },
+    },
+  },
+  {
+    match: /ApproveItemRequest/i,
+    copy: {
+      additional: {
+        title: 'Catatan Persetujuan',
+        description: 'Catatan keputusan untuk permintaan barang.',
+      },
+      relations: {
+        title: 'Jumlah yang Disetujui',
+        description: 'Periksa barang, jumlah diminta, stok tersedia, dan jumlah yang disetujui.',
+      },
+    },
+  },
+  {
+    match: /(delivery-?orders?|createdeliveryorder|surat jalan|transfer antar gudang)/i,
+    copy: {
+      primary: {
+        title: 'Dokumen Pengiriman',
+        description: 'Nomor pelacakan atau referensi dokumen pengiriman.',
+      },
+      context: {
+        title: 'Permintaan & Rute Gudang',
+        description: 'Permintaan sumber, gudang pengirim, dan gudang penerima.',
+      },
+      additional: {
+        title: 'Catatan Pengiriman',
+        description: 'Keterangan tambahan untuk proses pengiriman.',
+      },
+      relations: {
+        title: 'Barang yang Dikirim',
+        description: 'Barang dan jumlah kirim yang berasal dari permintaan.',
+      },
+    },
+  },
+  {
     match: /(item-?uom|uom-?conversion|itemuomconversion)/i,
     copy: {
       primary: { title: 'Nilai Konversi', description: 'Nilai pengali antar satuan barang.' },
@@ -366,6 +410,17 @@ function contextualFieldGroup(
   const source = String(context ?? '').toLocaleLowerCase('id-ID')
   const name = normalized(key)
 
+  if (/checkitemrequeststock/i.test(source) && name === 'warehouse_id') return 'context'
+  if (/approveitemrequest/i.test(source)) {
+    if (name === 'lines') return 'relations'
+    if (name === 'notes') return 'additional'
+  }
+  if (/(delivery-?orders?|createdeliveryorder|surat jalan|transfer antar gudang)/i.test(source)) {
+    if (/^(request_id|from_warehouse_id|to_warehouse_id)$/.test(name)) return 'context'
+    if (name === 'tracking_no') return 'primary'
+    if (name === 'lines') return 'relations'
+    if (name === 'notes') return 'additional'
+  }
   if (/(category-?groups?|categorygroup)/i.test(source)) {
     if (/^category_group_(code|name)$/.test(name)) return 'primary'
     if (/^(category_ids|categories)$/.test(name)) return 'relations'

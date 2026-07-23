@@ -117,9 +117,24 @@ async function load(): Promise<void> {
         ...queryFromModel(),
       },
     })
-    rows.value = normalizeList<Record<string, unknown>>(payload)
-    total.value = extractTotal(payload)
-    hasMore.value = rows.value.length >= perPage.value
+    const loadedRows = normalizeList<Record<string, unknown>>(payload)
+    const allowedStatuses = new Set(
+      (props.source.allowedStatuses ?? []).map((status) => status.toUpperCase()),
+    )
+    rows.value = loadedRows.filter((row) => {
+      if (
+        allowedStatuses.size > 0 &&
+        !allowedStatuses.has(String(row.status ?? '').toUpperCase())
+      ) {
+        return false
+      }
+      return props.source.rowFilter ? props.source.rowFilter(row) : true
+    })
+    // Setelah filter lokal, total keseluruhan dari API tidak lagi akurat.
+    // Gunakan mode total-tidak-diketahui agar tombol halaman berikutnya tetap
+    // mengikuti jumlah baris mentah yang diterima dari server.
+    total.value = allowedStatuses.size > 0 || props.source.rowFilter ? 0 : extractTotal(payload)
+    hasMore.value = loadedRows.length >= perPage.value
   } catch (cause) {
     rows.value = []
     total.value = 0
@@ -275,7 +290,9 @@ onMounted(() => void hydrateSelected())
         :row-key="(row) => String(row[source.valueKey])"
         :search-placeholder="source.searchPlaceholder || 'Cari data…'"
         empty-title="Data tidak ditemukan"
-        empty-description="Ubah kata pencarian atau periksa context aktif."
+        :empty-description="
+          source.filteredEmptyDescription || 'Ubah kata pencarian atau periksa context aktif.'
+        "
         @update:per-page="changePerPage"
         @page-change="changePage"
         @refresh="load"

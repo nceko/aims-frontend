@@ -3,17 +3,18 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Plus, Trash2 } from '@lucide/vue'
 import ApiOptionField from './ApiOptionField.vue'
 import ApiResourcePicker from './ApiResourcePicker.vue'
-import type { ApiSchema, FieldResourcePickerSource } from '@/types/resource'
+import type { ApiSchema, FieldOptionSource, FieldResourcePickerSource } from '@/types/resource'
 
 const props = withDefaults(
   defineProps<{
     schema: ApiSchema
     modelValue: Record<string, unknown>[]
     supplierId?: unknown
+    sourceRequestId?: unknown
     disabled?: boolean
     required?: boolean
   }>(),
-  { supplierId: undefined, disabled: false, required: false },
+  { supplierId: undefined, sourceRequestId: undefined, disabled: false, required: false },
 )
 
 const emit = defineEmits<{
@@ -24,6 +25,30 @@ const previousSupplier = ref(props.supplierId)
 const properties = computed(() => props.schema.properties ?? {})
 const requiredFields = computed(() => new Set(props.schema.required ?? []))
 const supports = (name: string) => Boolean(properties.value[name])
+const hasRequestSource = computed(
+  () =>
+    props.sourceRequestId !== undefined &&
+    props.sourceRequestId !== null &&
+    props.sourceRequestId !== '',
+)
+const showRequestLineColumn = computed(() => supports('request_line_id') && hasRequestSource.value)
+const visibleColumnCount = computed(
+  () =>
+    3 +
+    Number(showRequestLineColumn.value) +
+    Number(supports('part_id')) +
+    Number(supports('uom_id')) +
+    Number(supports('ordered_qty')) +
+    Number(supports('unit_price')) +
+    Number(supports('lot_no')) +
+    Number(supports('notes')),
+)
+const itemUOMSource: FieldOptionSource = {
+  path: '/api/v1/items/{id}/uoms/options',
+  pathFromModel: { id: 'item_id' },
+  valueKeys: ['value', 'uom_id', 'id'],
+  labelKeys: ['label', 'uom_code', 'uom_name'],
+}
 const itemSource = computed<FieldResourcePickerSource>(() => ({
   operationId: 'FindItemSuppliersBySupplierID',
   detailOperationId: 'FindItemByID',
@@ -66,7 +91,7 @@ function removeLine(index: number) {
 function updateLine(index: number, key: string, value: unknown) {
   const next = [...props.modelValue]
   next[index] = { ...(next[index] ?? {}), [key]: value }
-  if (key === 'item_id') next[index] = { ...next[index], part_id: '' }
+  if (key === 'item_id') next[index] = { ...next[index], part_id: '', uom_id: '' }
   emit('update:modelValue', next)
 }
 
@@ -84,6 +109,7 @@ function applyItemSelection(index: number, row: Record<string, unknown>) {
     ...(next[index] ?? {}),
     item_id: row.item_id,
     part_id: '',
+    uom_id: '',
   }
   if (
     (line.unit_price === '' || line.unit_price === undefined) &&
@@ -105,7 +131,11 @@ watch(
     if (previousSupplier.value !== value && props.modelValue.length) {
       emit(
         'update:modelValue',
-        props.modelValue.map((line) => ({ ...line, item_id: '', part_id: '', unit_price: '' })),
+        props.modelValue.map((line) =>
+          line.request_line_id
+            ? { ...line, unit_price: '' }
+            : { ...line, item_id: '', part_id: '', unit_price: '' },
+        ),
       )
     }
     previousSupplier.value = value
@@ -124,6 +154,7 @@ watch(
         <thead>
           <tr>
             <th class="po-lines-table__number">No.</th>
+            <th v-if="showRequestLineColumn">Baris Permintaan</th>
             <th>Barang *</th>
             <th v-if="supports('part_id')">Part Number</th>
             <th v-if="supports('uom_id')">UOM *</th>
@@ -137,6 +168,12 @@ watch(
         <tbody>
           <tr v-for="(line, index) in modelValue" :key="index">
             <td class="po-lines-table__number">{{ index + 1 }}</td>
+            <td v-if="showRequestLineColumn">
+              <span v-if="line.request_line_id" class="po-lines-table__request-line">
+                #{{ line.request_line_id }}
+              </span>
+              <span v-else>—</span>
+            </td>
             <td>
               <ApiResourcePicker
                 field-name="item_id"
@@ -165,7 +202,8 @@ watch(
                 :model-value="fieldValue(line, 'uom_id')"
                 :root-model="line"
                 :required="requiredFields.has('uom_id')"
-                :disabled="disabled"
+                :disabled="disabled || !line.item_id"
+                :source-override="itemUOMSource"
                 :clearable="false"
                 @update:model-value="updateLine(index, 'uom_id', $event)"
               />
@@ -225,7 +263,9 @@ watch(
             </td>
           </tr>
           <tr v-if="modelValue.length === 0">
-            <td :colspan="9" class="po-lines-table__empty">Belum ada barang yang ditambahkan.</td>
+            <td :colspan="visibleColumnCount" class="po-lines-table__empty">
+              Belum ada barang yang ditambahkan.
+            </td>
           </tr>
         </tbody>
       </table>
