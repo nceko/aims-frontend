@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createMemoryHistory, createRouter, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/modules/auth/auth.store'
 import { tokenStorage } from '@/services/token-storage'
 import { resourceModuleList } from '@/config/modules'
@@ -12,7 +12,9 @@ const resourceRoutes: RouteRecordRaw[] = resourceModuleList.map((module) => ({
 }))
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  // Navigasi tetap dikelola oleh Vue Router tanpa menuliskan path menu ke address bar.
+  // Konsekuensinya, reload browser selalu memulai aplikasi dari route root/dashboard.
+  history: createMemoryHistory(import.meta.env.BASE_URL),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
     {
@@ -212,10 +214,18 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (to.meta.public) {
-    if (to.path === '/login' && tokenStorage.accessToken()) return '/'
+    if (
+      to.path === '/login' &&
+      (tokenStorage.accessToken() || tokenStorage.refreshToken()) &&
+      (await auth.restoreSession())
+    ) {
+      return '/'
+    }
     return true
   }
-  if (!tokenStorage.accessToken()) return { path: '/login', query: { redirect: to.fullPath } }
+  if (!tokenStorage.accessToken() && !tokenStorage.refreshToken()) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
   if (!auth.user) {
     const valid = await auth.restoreSession()
     if (!valid) return { path: '/login', query: { redirect: to.fullPath } }

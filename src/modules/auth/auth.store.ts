@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { authApi } from './auth.api'
+import { isSessionRejected, isTransientHttpError, restoreAccessToken } from '@/services/http'
 import { tokenStorage } from '@/services/token-storage'
 import type {
   AccessOption,
@@ -51,7 +52,9 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const contextLoading = ref(false)
 
-  const authenticated = computed(() => Boolean(tokenStorage.accessToken()))
+  const authenticated = computed(() =>
+    Boolean(tokenStorage.accessToken() || tokenStorage.refreshToken()),
+  )
   const displayName = computed(
     () => user.value?.full_name || user.value?.name || user.value?.email || 'User',
   )
@@ -154,7 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function restoreSession(): Promise<boolean> {
-    if (!tokenStorage.accessToken()) return false
+    if (!tokenStorage.accessToken() && !tokenStorage.refreshToken()) return false
     const cached = tokenStorage.authState<CachedAuthState>()
     if (cached) {
       user.value = cached.user ? safeProfile(cached.user) : null
@@ -162,12 +165,20 @@ export const useAuthStore = defineStore('auth', () => {
       contextOptions.value = cached.contextOptions ?? { locations: [], categoryGroups: [] }
     }
     try {
+      if (!tokenStorage.accessToken()) await restoreAccessToken()
       user.value = safeProfile(cached?.user, await authApi.me())
       persistState()
       return true
-    } catch {
-      tokenStorage.clear()
-      user.value = null
+    } catch (error) {
+      // Saat backend restart/offline, gunakan profil terakhir dan pertahankan token.
+      // Request berikutnya akan mencoba refresh kembali setelah backend tersedia.
+      if (isTransientHttpError(error)) {
+        return Boolean(user.value && (tokenStorage.accessToken() || tokenStorage.refreshToken()))
+      }
+      if (isSessionRejected(error)) {
+        tokenStorage.clear()
+        user.value = null
+      }
       return false
     }
   }

@@ -35,6 +35,27 @@ export const http = axios.create({
 
 let refreshing: Promise<string> | null = null
 
+const TRANSIENT_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
+
+/**
+ * Gangguan jaringan, CORS/proxy sementara, timeout, dan masa restart backend tidak
+ * boleh dianggap sebagai logout. Token tetap disimpan agar sesi dapat pulih sendiri.
+ */
+export function isTransientHttpError(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false
+  if (error.response) return TRANSIENT_HTTP_STATUSES.has(error.response.status)
+  return (
+    Boolean(error.request) ||
+    ['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT'].includes(error.code ?? '')
+  )
+}
+
+/** Hanya penolakan eksplisit dari endpoint autentikasi yang mengakhiri sesi. */
+export function isSessionRejected(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false
+  return [400, 401, 403].includes(error.response?.status ?? 0)
+}
+
 function ensureHeaders(config: InternalAxiosRequestConfig): AxiosHeaders {
   if (config.headers instanceof AxiosHeaders) return config.headers
   const headers = new AxiosHeaders(config.headers)
@@ -53,6 +74,27 @@ async function refreshAccessToken(): Promise<string> {
   if (!accessToken) throw new Error('Access token baru tidak tersedia.')
   tokenStorage.setSession(accessToken, nextRefreshToken)
   return accessToken
+}
+
+function sharedRefreshAccessToken(): Promise<string> {
+  refreshing ??= refreshAccessToken().finally(() => {
+    refreshing = null
+  })
+  return refreshing
+}
+
+/** Memulihkan access token dari refresh token tanpa menggandakan request refresh. */
+export async function restoreAccessToken(): Promise<string> {
+  const accessToken = tokenStorage.accessToken()
+  if (accessToken) return accessToken
+  return sharedRefreshAccessToken()
+}
+
+function expireBrowserSession(): void {
+  tokenStorage.clear()
+  // Memory history menjaga URL browser tetap pada root. Reload root akan membuka
+  // halaman login secara internal setelah token yang ditolak sudah dibersihkan.
+  window.location.assign('/')
 }
 
 http.interceptors.request.use((config) => {
@@ -123,15 +165,13 @@ http.interceptors.response.use(
 
     request._retry = true
     try {
-      refreshing ??= refreshAccessToken().finally(() => {
-        refreshing = null
-      })
-      const token = await refreshing
+      const token = await sharedRefreshAccessToken()
       ensureHeaders(request).set('Authorization', `Bearer ${token}`)
       return http(request)
     } catch (refreshError) {
-      tokenStorage.clear()
-      if (window.location.pathname !== '/login') window.location.assign('/login')
+      // Backend yang sedang restart biasanya memberi network error/502/503.
+      // Hanya refresh token yang ditolak secara eksplisit yang boleh logout.
+      if (isSessionRejected(refreshError)) expireBrowserSession()
       return Promise.reject(refreshError)
     }
   },

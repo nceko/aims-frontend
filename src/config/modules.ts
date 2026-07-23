@@ -1599,15 +1599,15 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
   }),
   'audit-logs': crud({
     key: 'audit-logs',
-    title: 'Audit Logs',
-    description: 'Riwayat perubahan data oleh user.',
+    title: 'Log Audit',
+    description: 'Jejak aktivitas pengguna, endpoint, dan hasil permintaan.',
     group: 'Administrasi',
     route: '/administration/audit-logs',
     listOperationId: 'FindAuditLogs',
     readPermission: 'auth.activity.audit_logs.read',
     superAdminOnly: true,
     readOnly: true,
-    columns: ['created_at', 'actor_name', 'action', 'entity_type', 'entity_id', 'ip_address'],
+    columns: ['full_name', 'action', 'created_at', 'raw_path', 'status_code'],
     idCandidates: ['audit_log_id', 'audit_id', 'id'],
   }),
   'login-histories': crud({

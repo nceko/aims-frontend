@@ -177,7 +177,11 @@ function clearNotices(): void {
 const listOperation = computed(() => getOperation(definition.value?.listOperationId))
 const createOperation = computed(() => getOperation(definition.value?.createOperationId))
 const updateOperation = computed(() => getOperation(definition.value?.updateOperationId))
+const isAuditLogTable = computed(() => definition.value?.key === 'audit-logs')
 const visibleColumns = computed(() => {
+  if (isAuditLogTable.value) {
+    return ['full_name', 'action', 'created_at', 'raw_path', 'status_code']
+  }
   const configured = (definition.value?.columns ?? []).filter(
     (column) => !isTechnicalIdField(column),
   )
@@ -194,11 +198,19 @@ const visibleColumns = computed(() => {
   return [...new Set([...available, ...inferred])].slice(0, 8)
 })
 const dataTableColumns = computed<DataTableColumn[]>(() =>
-  visibleColumns.value.map((column) => ({
-    key: column,
-    label: detailFieldLabel(column),
-    sortable: true,
-  })),
+  isAuditLogTable.value
+    ? [
+        { key: 'full_name', label: 'Pengguna', sortable: false, width: '22%' },
+        { key: 'action', label: 'Aktivitas', sortable: false, width: '17%' },
+        { key: 'created_at', label: 'Waktu', sortable: true, width: '17%' },
+        { key: 'raw_path', label: 'Endpoint', sortable: false },
+        { key: 'status_code', label: 'Respons', sortable: true, width: '12%' },
+      ]
+    : visibleColumns.value.map((column) => ({
+        key: column,
+        label: detailFieldLabel(column),
+        sortable: true,
+      })),
 )
 const rowActions = computed(() =>
   (definition.value?.actions ?? []).filter((action) =>
@@ -287,6 +299,25 @@ function displayValue(value: unknown): string {
   }
   if (typeof value === 'object') return Array.isArray(value) ? `${value.length} data` : 'Detail'
   return String(value)
+}
+function auditActionLabel(value: unknown): string {
+  const text = String(value ?? '').trim()
+  if (!text) return 'Aktivitas sistem'
+  return text.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toLocaleUpperCase('id-ID'))
+}
+function auditMethodClass(value: unknown): string {
+  const method = String(value ?? '').toUpperCase()
+  if (method === 'GET') return 'audit-method--read'
+  if (method === 'DELETE') return 'audit-method--delete'
+  if (method === 'POST') return 'audit-method--create'
+  return 'audit-method--update'
+}
+function auditResponseClass(value: unknown): string {
+  const status = Number(value)
+  if (status >= 500) return 'audit-response--error'
+  if (status >= 400) return 'audit-response--warning'
+  if (status >= 200 && status < 300) return 'audit-response--success'
+  return 'audit-response--neutral'
 }
 function isStatusColumn(column: string): boolean {
   return /(^status$|_status$|^is_active$|^success$)/.test(column)
@@ -1305,7 +1336,41 @@ watch(
         @refresh="load"
       >
         <template #cell="{ row, column }">
-          <StatusBadge v-if="isStatusColumn(column.key)" :value="row[column.key]" />
+          <div
+            v-if="isAuditLogTable && column.key === 'full_name'"
+            class="audit-cell audit-cell--user"
+          >
+            <strong>{{ displayValue(row.full_name) }}</strong>
+            <span>{{ displayValue(row.email) }}</span>
+          </div>
+          <div
+            v-else-if="isAuditLogTable && column.key === 'action'"
+            class="audit-cell audit-cell--activity"
+          >
+            <strong>{{ auditActionLabel(row.action) }}</strong>
+            <span class="audit-method" :class="auditMethodClass(row.method)">
+              {{ displayValue(row.method) }}
+            </span>
+          </div>
+          <div
+            v-else-if="isAuditLogTable && column.key === 'raw_path'"
+            class="audit-cell audit-cell--endpoint"
+          >
+            <code :title="String(row.raw_path ?? row.path ?? '')">
+              {{ displayValue(row.raw_path ?? row.path) }}
+            </code>
+            <span v-if="row.path && row.path !== row.raw_path">{{ displayValue(row.path) }}</span>
+          </div>
+          <div
+            v-else-if="isAuditLogTable && column.key === 'status_code'"
+            class="audit-cell audit-cell--response"
+          >
+            <span class="audit-response" :class="auditResponseClass(row.status_code)">
+              {{ displayValue(row.status_code) }}
+            </span>
+            <span>{{ displayValue(row.latency_ms) }} ms</span>
+          </div>
+          <StatusBadge v-else-if="isStatusColumn(column.key)" :value="row[column.key]" />
           <template v-else>{{ displayValue(row[column.key]) }}</template>
         </template>
         <template #actions="{ row }">
@@ -1529,3 +1594,97 @@ watch(
     />
   </div>
 </template>
+
+<style scoped>
+.audit-cell {
+  display: grid;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.audit-cell strong {
+  color: var(--text, #122033);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.audit-cell > span:not(.audit-method, .audit-response) {
+  color: var(--text-muted, #66758a);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+.audit-method,
+.audit-response {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.67rem;
+  font-weight: 800;
+  justify-content: center;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  padding: 0.32rem 0.52rem;
+  width: fit-content;
+}
+
+.audit-method--read {
+  background: #e8f3ff;
+  color: #1769aa;
+}
+
+.audit-method--create {
+  background: #e7f8ef;
+  color: #168354;
+}
+
+.audit-method--update {
+  background: #fff4df;
+  color: #a76000;
+}
+
+.audit-method--delete {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.audit-cell--endpoint {
+  max-width: 34rem;
+}
+
+.audit-cell--endpoint code {
+  color: var(--text, #233247);
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-response--success {
+  background: #e7f8ef;
+  color: #168354;
+}
+
+.audit-response--warning {
+  background: #fff4df;
+  color: #a76000;
+}
+
+.audit-response--error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.audit-response--neutral {
+  background: #edf1f5;
+  color: #58677a;
+}
+
+html[data-theme='dark'] .audit-cell strong,
+html[data-theme='dark'] .audit-cell--endpoint code {
+  color: #e9f0f7;
+}
+</style>

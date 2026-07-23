@@ -455,6 +455,27 @@ const goodsReceiptScanInView = await readFile(
   'utf8',
 )
 const routerSource = await readFile(new URL('../src/router/index.ts', import.meta.url), 'utf8')
+const authStoreSource = await readFile(
+  new URL('../src/modules/auth/auth.store.ts', import.meta.url),
+  'utf8',
+)
+const httpSource = await readFile(new URL('../src/services/http.ts', import.meta.url), 'utf8')
+
+test('menu navigation uses memory history so the browser URL stays at the application root', () => {
+  assert.match(routerSource, /createMemoryHistory/)
+  assert.doesNotMatch(routerSource, /createWebHistory/)
+  assert.match(routerSource, /tokenStorage\.refreshToken\(\)/)
+})
+
+test('temporary backend restart preserves the cached session and refresh token', () => {
+  assert.match(authStoreSource, /isTransientHttpError\(error\)/)
+  assert.match(authStoreSource, /restoreAccessToken\(\)/)
+  assert.match(authStoreSource, /tokenStorage\.accessToken\(\) \|\| tokenStorage\.refreshToken\(\)/)
+  assert.match(httpSource, /TRANSIENT_HTTP_STATUSES/)
+  assert.match(httpSource, /sharedRefreshAccessToken/)
+  assert.match(httpSource, /if \(isSessionRejected\(refreshError\)\) expireBrowserSession\(\)/)
+  assert.doesNotMatch(httpSource, /window\.location\.assign\('\/login'\)/)
+})
 
 test('goods receipt uses one dedicated scan-in workspace with camera and one stock post', () => {
   assert.match(modules, /label: 'Scan Masuk'/)
