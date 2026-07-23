@@ -337,7 +337,6 @@ export const navigation: NavItem[] = [
     icon: ClipboardCheck,
     permissionAny: [
       'approvals.inbox.read',
-      'dashboard.read',
       'transaction.purchase_orders.approve',
       'transaction.purchase_orders.reject',
       'transaction.item_requests.approve',
@@ -470,7 +469,12 @@ export const dashboardHighlights = [
     to: '/assets/register',
     permission: 'inventory.assets.read',
   },
-  { label: 'Persetujuan', icon: ClipboardCheck, to: '/approvals', permission: 'dashboard.read' },
+  {
+    label: 'Persetujuan',
+    icon: ClipboardCheck,
+    to: '/approvals',
+    permission: 'approvals.inbox.read',
+  },
   {
     label: 'Nilai Persediaan',
     icon: Calculator,

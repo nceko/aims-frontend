@@ -13,6 +13,7 @@ import StatusBadge from '@/components/data/StatusBadge.vue'
 import StructuredData from '@/components/data/StructuredData.vue'
 import DocumentAttachments from '@/components/data/DocumentAttachments.vue'
 import RelatedDataTable from '@/components/data/RelatedDataTable.vue'
+import UserAccessEditor from '@/components/data/UserAccessEditor.vue'
 import GoodsReceiptQrModal, {
   type GoodsReceiptQrLabel,
 } from '@/components/data/GoodsReceiptQrModal.vue'
@@ -692,12 +693,81 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
   }
   const operation = getOperation(action.operationId)
   if (!operation) return
+  formHint.value = ''
   selected.value = row ?? null
   activeAction.value = action
   formOperation.value = operation
   if (operation.body?.properties && Object.keys(operation.body.properties).length) {
     formMode.value = 'action'
     let source: unknown = initialValue(operation.body)
+    if (
+      row &&
+      [
+        'SetUserAccess',
+        'AssignUserCategoryGroups',
+        'AssignUserRoles',
+        'AssignRolePermissions',
+      ].includes(action.operationId)
+    ) {
+      const id = rowId(row)
+      if (id !== undefined) {
+        try {
+          if (action.operationId === 'SetUserAccess') {
+            const current = asRecord(
+              await executeOperation('FindUserAccess', { path: { id: String(id) } }),
+            )
+            source = {
+              companies: (Array.isArray(current.companies) ? current.companies : []).map((raw) => {
+                const company = asRecord(raw)
+                return {
+                  company_id: Number(company.company_id),
+                  is_default: Boolean(company.is_default),
+                  scope_mode: String(company.scope_mode || 'LOCATION_TREE'),
+                }
+              }),
+              location_ids: (Array.isArray(current.locations) ? current.locations : [])
+                .map((raw) => Number(asRecord(raw).location_id))
+                .filter((value) => Number.isFinite(value) && value > 0),
+              category_group_ids: (Array.isArray(current.category_groups)
+                ? current.category_groups
+                : []
+              )
+                .map((raw) => Number(asRecord(raw).category_group_id))
+                .filter((value) => Number.isFinite(value) && value > 0),
+            }
+          } else if (action.operationId === 'AssignUserCategoryGroups') {
+            const current = normalizeList<Record<string, unknown>>(
+              await executeOperation('FindUserCategoryGroups', { path: { id: String(id) } }),
+            )
+            source = {
+              category_group_ids: current
+                .map((item) => Number(item.category_group_id ?? item.id))
+                .filter((value) => Number.isFinite(value) && value > 0),
+            }
+          } else if (action.operationId === 'AssignUserRoles') {
+            const current = normalizeList<Record<string, unknown>>(
+              await executeOperation('FindUserRoles', { path: { id: String(id) } }),
+            )
+            source = {
+              role_ids: current
+                .map((item) => String(item.role_id ?? item.id ?? ''))
+                .filter(Boolean),
+            }
+          } else if (action.operationId === 'AssignRolePermissions') {
+            const current = normalizeList<Record<string, unknown>>(
+              await executeOperation('FindRolePermissions', { path: { id: String(id) } }),
+            )
+            source = {
+              permission_ids: current
+                .map((item) => String(item.permission_id ?? item.id ?? ''))
+                .filter(Boolean),
+            }
+          }
+        } catch (cause) {
+          formHint.value = errorMessage(cause, 'Data hak akses lama tidak dapat dimuat.')
+        }
+      }
+    }
     if (
       [
         'UpdateGoodsReceiptLines',
@@ -1338,7 +1408,13 @@ watch(
         {{ formHint }}
       </div>
       <form v-if="formOperation?.body" id="resource-form" @submit.prevent="submitForm">
+        <UserAccessEditor
+          v-if="activeAction?.operationId === 'SetUserAccess'"
+          v-model="formModel"
+          :disabled="hydrating"
+        />
         <SchemaFields
+          v-else
           :schema="formOperation.body"
           v-model="formModel"
           :disabled="hydrating"

@@ -4,6 +4,7 @@ import { Plus, Trash2 } from '@lucide/vue'
 import ApiOptionField from './ApiOptionField.vue'
 import ApiResourcePicker from './ApiResourcePicker.vue'
 import PurchaseOrderLinesField from './PurchaseOrderLinesField.vue'
+import PermissionCheckboxField from './PermissionCheckboxField.vue'
 import type { ApiSchema } from '@/types/resource'
 import { fieldOptionSources, humanizeField } from '@/config/field-options'
 import { fieldResourcePickers } from '@/config/field-resource-pickers'
@@ -163,8 +164,17 @@ function updatePrimitiveArray(key: string, event: Event) {
       </header>
       <div class="schema-form-grid">
         <template v-for="[name, child] in group.entries" :key="name">
+          <fieldset v-if="name === 'permission_ids'" class="schema-fieldset schema-fieldset--full">
+            <legend>{{ humanizeField(name) }} <b v-if="requiredFields.has(name)">*</b></legend>
+            <PermissionCheckboxField
+              :model-value="modelValue[name]"
+              :disabled="fieldDisabled(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
           <fieldset
-            v-if="child.type === 'object' || child.properties"
+            v-else-if="child.type === 'object' || child.properties"
             class="schema-fieldset schema-fieldset--full"
           >
             <legend>{{ humanizeField(name) }}</legend>

@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from
 import { runtimeConfig } from '@/config/runtime'
 import { endpoints } from '@/config/endpoints'
 import { tokenStorage } from './token-storage'
+import { deviceName } from '@/utils/device-name'
 import {
   bearerTokenFor,
   createIdempotencyKey,
@@ -59,6 +60,12 @@ http.interceptors.request.use((config) => {
   const path = requestPath(config.url)
 
   if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+
+  // Login history menyimpan nama perangkat dalam format ringkas dan aman,
+  // misalnya: Chrome 150 / Windows / Desktop.
+  if (path === requestPath(endpoints.auth.login) && !headers.has('X-Device-Name')) {
+    headers.set('X-Device-Name', deviceName())
+  }
 
   // Public company, login, dan refresh tidak boleh menerima Bearer token.
   // Semua endpoint /api/v1 lain memakai access token aktif; switch-context awal

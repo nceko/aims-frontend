@@ -155,7 +155,6 @@ const router = createRouter({
           meta: {
             permissionAny: [
               'approvals.inbox.read',
-              'dashboard.read',
               'transaction.purchase_orders.approve',
               'transaction.purchase_orders.reject',
               'transaction.item_requests.approve',
