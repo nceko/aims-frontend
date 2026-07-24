@@ -6,6 +6,7 @@ import { deviceName } from '@/utils/device-name'
 import {
   bearerTokenFor,
   createIdempotencyKey,
+  createRequestID,
   isFormData,
   isPublicPath,
   isUrlSearchParams,
@@ -102,6 +103,9 @@ http.interceptors.request.use((config) => {
   const path = requestPath(config.url)
 
   if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+  // Correlation ID dibuat di client agar log frontend, proxy, dan backend dapat
+  // ditelusuri dengan nilai yang sama. Nilai dipertahankan saat Axios retry.
+  if (!headers.has('X-Request-ID')) headers.set('X-Request-ID', createRequestID())
 
   // Login history menyimpan nama perangkat dalam format ringkas dan aman,
   // misalnya: Chrome 150 / Windows / Desktop.

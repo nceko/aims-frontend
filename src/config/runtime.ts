@@ -19,9 +19,10 @@ export const runtimeConfig = Object.freeze({
   apiBaseUrl: (runtime.API_BASE_URL || import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''),
   apiTimeout: toPositiveNumber(runtime.API_TIMEOUT || import.meta.env.VITE_API_TIMEOUT, 30_000),
   enableDevLogin: import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true',
-  // Dinonaktifkan karena backend CORS saat ini belum mengizinkan header Idempotency-Key.
+  // Backend mengizinkan Idempotency-Key dan menyimpan replay untuk endpoint
+  // transaksi mutating. Aktif secara default agar retry tidak menggandakan data.
   enableIdempotencyHeader: toBoolean(
     runtime.ENABLE_IDEMPOTENCY_HEADER || import.meta.env.VITE_ENABLE_IDEMPOTENCY_HEADER,
-    false,
+    true,
   ),
 })

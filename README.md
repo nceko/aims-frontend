@@ -294,7 +294,7 @@ Detail tersedia di `docs/API_HEADER_AND_TABLE_ACTION_REPORT.md`.
 Frontend selalu mengirim `Authorization: Bearer <access_token>` untuk endpoint protected. Header `Idempotency-Key` bersifat opsional dan default-nya dimatikan karena konfigurasi CORS backend saat ini belum memasukkan header tersebut ke `Access-Control-Allow-Headers`.
 
 ```env
-VITE_ENABLE_IDEMPOTENCY_HEADER=false
+VITE_ENABLE_IDEMPOTENCY_HEADER=true
 ```
 
 Aktifkan hanya setelah backend mengizinkan `Idempotency-Key` pada CORS. Untuk container, gunakan environment variable `ENABLE_IDEMPOTENCY_HEADER=true`.

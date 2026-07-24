@@ -138,6 +138,10 @@ def main() -> None:
                 "parameters": normalized_parameters,
                 "body": body,
                 "response": response_schema,
+                "security": operation.get("security", []),
+                "consumes": operation.get("consumes", swagger.get("consumes", [])),
+                "produces": operation.get("produces", swagger.get("produces", [])),
+                "idempotencySupported": bool(operation.get("x-idempotency-supported", False)),
             }
 
     output = {

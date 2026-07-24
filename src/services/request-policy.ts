@@ -1,4 +1,5 @@
 import type { Method } from 'axios'
+import metadata from '@/generated/api-metadata.json'
 import { runtimeConfig } from '@/config/runtime'
 import { tokenStorage } from './token-storage'
 
@@ -6,6 +7,25 @@ const PUBLIC_PREFIX = '/public/'
 const AUTH_WITHOUT_BEARER = new Set(['/api/v1/auth/login', '/api/v1/auth/refresh'])
 const AUTH_PREFIX = '/api/v1/auth/'
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+interface IdempotentOperationMetadata {
+  method?: string
+  path?: string
+  idempotencySupported?: boolean
+}
+
+const idempotentOperations = Object.values(
+  metadata.operations as Record<string, IdempotentOperationMetadata>,
+)
+  .filter((operation) => operation.idempotencySupported)
+  .map((operation) => ({
+    method: String(operation.method || '').toUpperCase(),
+    pattern: new RegExp(
+      `^${String(operation.path || '')
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\{[^}]+\\\}/g, '[^/]+')}$`,
+    ),
+  }))
 
 export function requestPath(url?: string): string {
   if (!url) return ''
@@ -46,8 +66,19 @@ export function isMutation(method?: Method | string): boolean {
  * sehingga backend tidak memproses transaksi yang sama dua kali.
  */
 export function needsIdempotencyKey(method?: Method | string, url?: string): boolean {
+  const normalizedMethod = String(method || 'GET').toUpperCase()
   const path = requestPath(url)
-  return isMutation(method) && path.startsWith('/api/v1/') && !isAuthPath(path)
+  if (!isMutation(normalizedMethod) || isAuthPath(path)) return false
+  return idempotentOperations.some(
+    (operation) => operation.method === normalizedMethod && operation.pattern.test(path),
+  )
+}
+
+export function createRequestID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 export function createIdempotencyKey(): string {

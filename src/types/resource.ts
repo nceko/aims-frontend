@@ -37,6 +37,10 @@ export interface ApiOperation {
   parameters: ApiParameter[]
   body?: ApiSchema | null
   response?: ApiSchema | null
+  security?: Array<Record<string, string[]>>
+  consumes?: string[]
+  produces?: string[]
+  idempotencySupported?: boolean
 }
 
 export interface ResourceActionDefinition {
