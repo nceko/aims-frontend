@@ -420,6 +420,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
       'status',
     ],
     idCandidates: ['po_id', 'id'],
+    createOptionDefaults: { warehouse_id: 'WH-PST' },
     attachmentEntityType: 'PURCHASE_ORDER',
     editableStatuses: ['DRAFT'],
     listViews: [

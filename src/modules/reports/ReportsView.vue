@@ -94,6 +94,16 @@ const reports: ReportDefinition[] = [
     exportable: true,
   },
   {
+    key: 'item-request-fulfillment',
+    group: 'usage',
+    title: 'Kinerja Pemenuhan Permintaan',
+    description:
+      'Waktu persetujuan, pemenuhan pertama, pemenuhan total, tingkat pemenuhan, keterlambatan, pengiriman bertahap, dan keterkaitan PO.',
+    path: '/api/v1/reports/item-request-fulfillment',
+    permission: 'reports.inventory.read',
+    exportable: true,
+  },
+  {
     key: 'item-usages',
     group: 'usage',
     title: 'Pemakaian Barang',

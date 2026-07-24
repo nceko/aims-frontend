@@ -46,16 +46,24 @@ const routeListQuery = computed<Record<string, unknown>>(() => {
     ? (value as Record<string, unknown>)
     : {}
 })
+function localDateInputValue(date = new Date()): string {
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
 const createDefaults = computed<Record<string, unknown>>(() => {
   const value = route.meta.createDefaults
   const routeDefaults =
     value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {}
-  const moduleDefaults: Record<string, unknown> =
-    definition.value?.key === 'item-usages'
-      ? { issue_mode: 'REQUEST', usage_type: 'OPERATIONAL' }
-      : {}
+  let moduleDefaults: Record<string, unknown> = {}
+  if (definition.value?.key === 'item-usages') {
+    moduleDefaults = { issue_mode: 'REQUEST', usage_type: 'OPERATIONAL' }
+  }
+  if (definition.value?.key === 'purchase-orders') {
+    moduleDefaults = { expected_date: localDateInputValue(), currency_code: 'IDR' }
+  }
   return { ...moduleDefaults, ...routeDefaults }
 })
 const rows = ref<Record<string, unknown>[]>([])
@@ -105,6 +113,7 @@ const deliveryOrderReadyStatuses = new Set([
   'APPROVED',
   'PROCESSING_DELIVERY',
   'PARTIALLY_FULFILLED',
+  'WAITING_PURCHASE',
   'SHIPPED',
 ])
 
@@ -1025,6 +1034,36 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
                 }
               }),
             }
+          } else if (action.operationId === 'UpdateGoodsReceiptLines') {
+            const lines = Array.isArray(actionDetail.lines) ? actionDetail.lines : []
+            source = {
+              lines: lines.map((raw) => {
+                const line = asRecord(raw)
+                return {
+                  receipt_line_id: line.receipt_line_id,
+                  po_line_id: line.po_line_id,
+                  item_id: line.item_id,
+                  item_code: line.item_code,
+                  item_name: line.item_name,
+                  tracking_type: line.tracking_type,
+                  part_id: line.part_id,
+                  part_number: line.part_number,
+                  uom_id: line.uom_id,
+                  uom_code: line.uom_code,
+                  uom_name: line.uom_name,
+                  ordered_qty: line.ordered_qty,
+                  received_qty: line.received_qty,
+                  accepted_qty: line.accepted_qty,
+                  rejected_qty: line.rejected_qty,
+                  condition_status: line.condition_status || 'GOOD',
+                  lot_no: line.lot_no,
+                  purchase_unit_price: line.purchase_unit_price,
+                  currency_code: line.currency_code || 'IDR',
+                  notes: line.notes || '',
+                  rejection_reason: line.rejection_reason || '',
+                }
+              }),
+            }
           } else if (
             ['ConfirmDeliveryOrderPicking', 'ConfirmDeliveryOrderPacking'].includes(
               action.operationId,
@@ -1037,10 +1076,15 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
               lines: lines.map((raw) => {
                 const line = asRecord(raw)
                 const requested =
-                  asNumber(line.qty) || asNumber(line.requested_qty) || asNumber(line.approved_qty)
+                  asNumber(line.planned_qty) ||
+                  asNumber(line.qty) ||
+                  asNumber(line.requested_qty) ||
+                  asNumber(line.approved_qty)
+                const pickedQty = asNumber(line.picked_qty)
+                const packedQty = asNumber(line.packed_qty)
                 const defaultQty = packing
-                  ? asNumber(line.packed_qty) || asNumber(line.picked_qty) || requested
-                  : asNumber(line.picked_qty) || requested
+                  ? packedQty || pickedQty || requested
+                  : pickedQty || requested
                 return {
                   delivery_line_id: line.delivery_line_id,
                   item_id: line.item_id,
@@ -1051,8 +1095,10 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
                   uom_code: line.uom_code,
                   uom_name: line.uom_name,
                   requested_qty: requested,
-                  picked_qty: line.picked_qty,
-                  packed_qty: line.packed_qty,
+                  planned_qty: requested,
+                  picked_qty: pickedQty,
+                  packed_qty: packedQty,
+                  line_status: line.line_status,
                   qty: defaultQty,
                 }
               }),
@@ -1079,12 +1125,19 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
       }
     }
     const mergedModel = mergeModel(operation.body, source) as Record<string, unknown>
-    if (action.operationId === 'ApproveItemRequest') {
-      const approvalLines = asRecord(source).lines
-      if (Array.isArray(approvalLines)) {
-        // Kolom identitas barang hanya dipakai untuk tampilan. cleanPayload tetap
-        // mengirim request_line_id dan approved_qty sesuai kontrak API.
-        mergedModel.lines = approvalLines
+    if (
+      [
+        'ApproveItemRequest',
+        'UpdateGoodsReceiptLines',
+        'ConfirmDeliveryOrderPicking',
+        'ConfirmDeliveryOrderPacking',
+      ].includes(action.operationId)
+    ) {
+      const displayLines = asRecord(source).lines
+      if (Array.isArray(displayLines)) {
+        // Identitas barang dipertahankan untuk tampilan komponen khusus.
+        // cleanPayload tetap hanya mengirim field yang ada pada kontrak API.
+        mergedModel.lines = displayLines
       }
     }
     formModel.value = mergedModel
@@ -1197,6 +1250,56 @@ function asNumber(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
 }
+
+function dateInputValue(value: unknown, fallback = localDateInputValue()): string {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    const match = normalized.match(/^\d{4}-\d{2}-\d{2}/)
+    if (match) return match[0]
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return localDateInputValue(value)
+  return fallback
+}
+
+async function resolveCommonDefaultSupplier(
+  requestLines: Record<string, unknown>[],
+): Promise<Record<string, unknown> | null> {
+  const itemIDs = [
+    ...new Set(requestLines.map((line) => asNumber(line.item_id)).filter((itemID) => itemID > 0)),
+  ]
+  if (!itemIDs.length) return null
+
+  try {
+    const suppliersPerItem = await Promise.all(
+      itemIDs.map(async (itemID) => {
+        const payload = await executeOperation('FindItemSuppliersByItemID', {
+          path: { id: String(itemID) },
+          query: { active_only: true },
+        })
+        const suppliers = normalizeList<Record<string, unknown>>(payload).filter(
+          (supplier) => supplier.is_active !== false,
+        )
+        return (
+          suppliers.find((supplier) => supplier.is_default === true) ??
+          (suppliers.length === 1 ? suppliers[0] : null)
+        )
+      }),
+    )
+    if (suppliersPerItem.some((supplier) => !supplier)) return null
+
+    const first = suppliersPerItem[0]
+    const supplierID = asNumber(first?.supplier_id)
+    if (
+      !supplierID ||
+      suppliersPerItem.some((supplier) => asNumber(supplier?.supplier_id) !== supplierID)
+    ) {
+      return null
+    }
+    return first ?? null
+  } catch {
+    return null
+  }
+}
 async function hydrateTransactionReference(
   kind: 'po' | 'request' | 'purchase-request' | 'usage-request',
   value: unknown,
@@ -1223,9 +1326,18 @@ async function hydrateTransactionReference(
               return {
                 po_line_id: line.po_line_id,
                 item_id: line.item_id,
+                item_code: line.item_code,
+                item_name: line.item_name,
+                tracking_type: String(line.tracking_type ?? '').toUpperCase(),
                 part_id: line.part_id || undefined,
+                part_number: line.part_number,
                 uom_id: line.uom_id,
-                lot_no: line.lot_no || undefined,
+                uom_code: line.uom_code,
+                uom_name: line.uom_name,
+                lot_no:
+                  String(line.tracking_type ?? '').toUpperCase() === 'LOT'
+                    ? line.lot_no || undefined
+                    : undefined,
                 ordered_qty: line.ordered_qty,
                 received_qty: remaining,
                 accepted_qty: remaining,
@@ -1234,6 +1346,7 @@ async function hydrateTransactionReference(
                 purchase_unit_price: line.unit_price,
                 currency_code: po.currency_code || 'IDR',
                 notes: '',
+                rejection_reason: '',
               }
             })
             .filter((line) => asNumber(line.received_qty) > 0)
@@ -1242,7 +1355,11 @@ async function hydrateTransactionReference(
         ...formModel.value,
         po_id: po.po_id ?? value,
         supplier_id: po.supplier_id,
+        supplier_code: po.supplier_code,
+        supplier_name: po.supplier_name,
         warehouse_id: po.warehouse_id,
+        warehouse_code: po.warehouse_code,
+        warehouse_name: po.warehouse_name,
         lines,
       }
       formHint.value = lines.length
@@ -1325,7 +1442,7 @@ async function hydrateTransactionReference(
                 remaining_qty: remaining,
                 lot_locked: Boolean(line.lot_no),
                 lot_no: line.lot_no || undefined,
-                qty: remaining,
+                qty: Math.min(remaining, Math.max(0, asNumber(line.available_stock_qty))),
                 notes: '',
               }
             })
@@ -1343,7 +1460,7 @@ async function hydrateTransactionReference(
       }
       formHint.value = lines.length
         ? `${lines.length} barang dimuat otomatis. Gudang asal diambil dari gudang pemenuh dan gudang tujuan dari gudang pemohon. Keduanya dikunci agar rute pengiriman tidak menyimpang dari permintaan.`
-        : 'Permintaan ini tidak memiliki sisa quantity yang dapat dikirim.'
+        : 'Permintaan ini belum memiliki stok siap kirim. Buat atau lanjutkan Pesanan Pembelian, lalu lakukan Cek Stok setelah barang diterima.'
     }
     if (kind === 'purchase-request' && definition.value?.key === 'purchase-orders') {
       const request = asRecord(
@@ -1351,18 +1468,28 @@ async function hydrateTransactionReference(
       )
       const lines = Array.isArray(request.lines)
         ? request.lines
-            .map((raw) => {
+            .map((raw, index) => {
               const line = asRecord(raw)
               const remaining =
                 asNumber(line.remaining_qty) ||
                 Math.max(0, asNumber(line.approved_qty) - asNumber(line.shipped_qty))
-              const shortage = Math.max(0, remaining - asNumber(line.available_stock_qty))
+              const shortage = Math.max(
+                0,
+                asNumber(line.procurement_shortage_qty) ||
+                  remaining - asNumber(line.available_stock_qty),
+              )
               return {
                 request_line_id: line.request_line_id,
+                _request_no: request.request_no,
+                _request_line_no: index + 1,
                 item_id: line.item_id,
                 part_id: line.part_id || undefined,
                 uom_id: line.uom_id,
-                lot_no: line.lot_no || undefined,
+                tracking_type: String(line.tracking_type ?? '').toUpperCase(),
+                lot_no:
+                  String(line.tracking_type ?? '').toUpperCase() === 'LOT'
+                    ? line.lot_no || undefined
+                    : undefined,
                 ordered_qty: shortage,
                 _remaining_qty: remaining,
                 _central_shortage_qty: shortage,
@@ -1372,6 +1499,13 @@ async function hydrateTransactionReference(
             })
             .filter((line) => asNumber(line.ordered_qty) > 0)
         : []
+      const existingSupplierID = asNumber(formModel.value.supplier_id)
+      const inferredSupplier = existingSupplierID
+        ? null
+        : await resolveCommonDefaultSupplier(
+            Array.isArray(request.lines) ? request.lines.map((raw) => asRecord(raw)) : [],
+          )
+      const fallbackExpectedDate = dateInputValue(formModel.value.expected_date)
       formModel.value = {
         ...formModel.value,
         source_request_id: request.request_id ?? value,
@@ -1379,11 +1513,18 @@ async function hydrateTransactionReference(
         _request_status: request.status,
         _requester_warehouse_id: request.requester_warehouse_id,
         _fulfillment_warehouse_id: request.fulfillment_warehouse_id,
-        expected_date: request.needed_date,
+        expected_date: dateInputValue(request.needed_date, fallbackExpectedDate),
+        supplier_id: existingSupplierID || inferredSupplier?.supplier_id || '',
+        supplier_code: formModel.value.supplier_code || inferredSupplier?.supplier_code || '',
+        supplier_name: formModel.value.supplier_name || inferredSupplier?.supplier_name || '',
         lines,
       }
+      const supplierHint =
+        existingSupplierID || inferredSupplier
+          ? ''
+          : ' Pilih supplier karena barang pada permintaan tidak memiliki satu supplier utama yang sama.'
       formHint.value = lines.length
-        ? `${lines.length} baris dimuat. Gunakan gudang pemenuh untuk pengadaan pusat, atau pilih gudang pemohon untuk pembelian daerah. Pembelian daerah hanya dapat dilakukan setelah status permintaan menjadi Menunggu Pengadaan dan tetap memerlukan persetujuan pusat.`
+        ? `${lines.length} baris dimuat. Quantity awal mengikuti saran kekurangan pengadaan dan tetap dapat dinaikkan untuk menambah stok gudang.${supplierHint}`
         : 'Permintaan ini tidak memiliki sisa quantity yang perlu dibeli.'
     }
     if (kind === 'usage-request' && definition.value?.key === 'item-usages') {
@@ -1447,7 +1588,7 @@ async function hydrateTransactionReference(
                 uom_code: line.uom_code,
                 uom_name: line.uom_name,
                 lot_no: line.lot_no || undefined,
-                qty: remaining,
+                qty: Math.min(remaining, Math.max(0, asNumber(line.available_stock_qty))),
                 remaining_qty: remaining,
                 notes: '',
               }
@@ -1471,7 +1612,7 @@ async function hydrateTransactionReference(
         ? `${lines.length} barang dimuat dari permintaan lokal ${String(
             request.request_no ?? '',
           )}. Gudang pengeluaran mengikuti gudang pemenuh pada permintaan dan dikunci agar stok tidak terpotong dari gudang yang salah.`
-        : 'Permintaan ini tidak memiliki sisa quantity yang dapat dikeluarkan.'
+        : 'Permintaan ini belum memiliki stok siap dikeluarkan. Buat atau lanjutkan Pesanan Pembelian, lalu lakukan Cek Stok setelah barang diterima.'
     }
   } catch (cause) {
     formHint.value = errorMessage(
@@ -1640,7 +1781,23 @@ watch(search, () => {
 watch(
   () => formModel.value.po_id,
   (value) => {
-    if (definition.value?.key === 'goods-receipts') void hydrateTransactionReference('po', value)
+    if (definition.value?.key !== 'goods-receipts') return
+    if (value === '' || value === null || value === undefined) {
+      lastHydratedReference.value = ''
+      formModel.value = {
+        ...formModel.value,
+        supplier_id: '',
+        supplier_code: '',
+        supplier_name: '',
+        warehouse_id: '',
+        warehouse_code: '',
+        warehouse_name: '',
+        lines: [],
+      }
+      formHint.value = ''
+      return
+    }
+    void hydrateTransactionReference('po', value)
   },
 )
 watch(
@@ -1662,7 +1819,7 @@ watch(
           _request_status: '',
           _requester_warehouse_id: '',
           _fulfillment_warehouse_id: '',
-          lines: lines.map((raw) => ({ ...asRecord(raw), request_line_id: '' })),
+          lines: lines.filter((raw) => !asRecord(raw).request_line_id),
         }
         formHint.value = ''
       } else {

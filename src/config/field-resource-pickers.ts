@@ -30,7 +30,13 @@ export const fieldResourcePickers: Record<string, FieldResourcePickerSource> = {
     description:
       'Pilih permintaan yang sudah disetujui dan masih memiliki quantity yang dapat dikirim.',
     searchPlaceholder: 'Cari nomor permintaan, warehouse, lokasi, atau status…',
-    allowedStatuses: ['APPROVED', 'PROCESSING_DELIVERY', 'PARTIALLY_FULFILLED', 'SHIPPED'],
+    allowedStatuses: [
+      'APPROVED',
+      'WAITING_PURCHASE',
+      'PROCESSING_DELIVERY',
+      'PARTIALLY_FULFILLED',
+      'SHIPPED',
+    ],
     selectionEffects: {
       from_warehouse_id: 'fulfillment_warehouse_id',
       from_warehouse_name: 'fulfillment_warehouse',

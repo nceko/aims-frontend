@@ -4,6 +4,7 @@ import { Plus, Trash2 } from '@lucide/vue'
 import ApiOptionField from './ApiOptionField.vue'
 import ApiResourcePicker from './ApiResourcePicker.vue'
 import PurchaseOrderLinesField from './PurchaseOrderLinesField.vue'
+import GoodsReceiptLinesField from './GoodsReceiptLinesField.vue'
 import ItemRequestApprovalLinesField from './ItemRequestApprovalLinesField.vue'
 import ItemRequestLinesField from './ItemRequestLinesField.vue'
 import ItemUsageRequestLinesField from './ItemUsageRequestLinesField.vue'
@@ -15,6 +16,7 @@ import { fieldOptionSources, humanizeField } from '@/config/field-options'
 import { fieldResourcePickers } from '@/config/field-resource-pickers'
 import { initialValue, inputType, isLongTextField } from '@/utils/schema'
 import { groupFieldEntries } from '@/utils/field-grouping'
+import { useAuthStore } from '@/modules/auth/auth.store'
 
 defineOptions({ name: 'SchemaFields' })
 const props = withDefaults(
@@ -40,6 +42,7 @@ const props = withDefaults(
   },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>] }>()
+const auth = useAuthStore()
 const root = computed(() => props.rootModel ?? props.modelValue)
 const contextModel = computed(() => ({ ...root.value, ...props.modelValue }))
 const requiredFields = computed(() => new Set(props.schema.required ?? []))
@@ -47,6 +50,15 @@ function fieldVisible(key: string): boolean {
   const model = contextModel.value
   const issueMode = String(model.issue_mode ?? '').toUpperCase()
   const itemUsageContext = props.groupingContext.includes('item-usages')
+  const purchaseOrderContext = props.groupingContext.includes('purchase-orders')
+  if (
+    purchaseOrderContext &&
+    key === 'source_request_id' &&
+    !auth.isSuperAdmin &&
+    !auth.user?.is_central_location
+  ) {
+    return false
+  }
   if (itemUsageContext && key === 'source_request_id' && issueMode !== 'REQUEST') return false
   if (itemUsageContext && key === 'request_line_id' && issueMode !== 'REQUEST') return false
   if (itemUsageContext && key === 'issue_mode') return false
@@ -103,7 +115,16 @@ const groups = computed(() =>
 )
 
 function fieldDisabled(name: string): boolean {
+  const context = props.groupingContext.toLocaleLowerCase('id-ID')
+  const goodsReceiptWithPO = context.includes('goods-receipts') && Boolean(contextModel.value.po_id)
+  if (goodsReceiptWithPO && ['warehouse_id', 'supplier_id'].includes(name)) return true
   return props.disabled || props.disabledFields.includes(name)
+}
+
+function fieldFullWidth(name: string, schema: ApiSchema): boolean {
+  const context = props.groupingContext.toLocaleLowerCase('id-ID')
+  if (context.includes('goods-receipts') && name === 'po_id') return true
+  return isLongTextField(name) || schema.type === 'array'
 }
 
 function fieldLabel(name: string): string {
@@ -158,6 +179,14 @@ function resourcePickerSource(name: string): FieldResourcePickerSource | undefin
       description:
         'Permintaan yang kekurangan stok akan dihubungkan ke PO agar otomatis kembali siap dipenuhi setelah barang diterima.',
       allowedStatuses: ['WAITING_PURCHASE', 'APPROVED', 'PARTIALLY_FULFILLED'],
+      columns: [
+        ...(source.columns ?? []).filter((column) => column.key !== 'status'),
+        { key: 'procurement_shortage_qty', label: 'Kekurangan Stok', width: '150px' },
+        ...(source.columns ?? []).filter((column) => column.key === 'status'),
+      ],
+      rowFilter: (row) => Number(row.procurement_shortage_qty ?? 0) > 0,
+      filteredEmptyDescription:
+        'Tidak ada permintaan dengan kekurangan stok yang masih perlu dibuatkan Pesanan Pembelian.',
     }
   }
   if (props.groupingContext.includes('item-usages')) {
@@ -166,7 +195,7 @@ function resourcePickerSource(name: string): FieldResourcePickerSource | undefin
       title: 'Pilih Permintaan Siap Dikeluarkan',
       description:
         'Hanya permintaan lokal yang gudang pemohon dan gudang pemenuhnya sama. Permintaan antar lokasi diproses melalui Surat Jalan / Delivery Order.',
-      allowedStatuses: ['APPROVED', 'STOCK_AVAILABLE', 'PARTIALLY_FULFILLED'],
+      allowedStatuses: ['APPROVED', 'STOCK_AVAILABLE', 'WAITING_PURCHASE', 'PARTIALLY_FULFILLED'],
       rowFilter: (row) => {
         const requesterWarehouseID = Number(row.requester_warehouse_id)
         const fulfillmentWarehouseID = Number(row.fulfillment_warehouse_id)
@@ -190,6 +219,15 @@ function isPurchaseOrderLines(name: string, schema: ApiSchema): boolean {
     name === 'lines' &&
     Boolean(schema.items?.ref?.includes('PurchaseOrderLine')) &&
     Boolean(schema.items?.properties?.ordered_qty)
+  )
+}
+function isGoodsReceiptLines(name: string, schema: ApiSchema): boolean {
+  return (
+    name === 'lines' &&
+    props.groupingContext.includes('goods-receipts') &&
+    Boolean(schema.items?.ref?.includes('GoodsReceiptLine')) &&
+    Boolean(schema.items?.properties?.received_qty) &&
+    Boolean(schema.items?.properties?.accepted_qty)
   )
 }
 function isItemRequestApprovalLines(name: string, schema: ApiSchema): boolean {
@@ -409,6 +447,24 @@ function updatePrimitiveArray(key: string, event: Event) {
             v-else-if="
               child.type === 'array' &&
               child.items?.type === 'object' &&
+              isGoodsReceiptLines(name, child)
+            "
+            class="schema-fieldset schema-fieldset--full"
+          >
+            <legend>Rincian Barang Diterima <b v-if="requiredFields.has(name)">*</b></legend>
+            <GoodsReceiptLinesField
+              :schema="child.items"
+              :model-value="(modelValue[name] as Record<string, unknown>[]) || []"
+              :disabled="fieldDisabled(name)"
+              :required="requiredFields.has(name)"
+              @update:model-value="update(name, $event)"
+            />
+          </fieldset>
+
+          <fieldset
+            v-else-if="
+              child.type === 'array' &&
+              child.items?.type === 'object' &&
               isPurchaseOrderLines(name, child)
             "
             class="schema-fieldset schema-fieldset--full"
@@ -469,11 +525,7 @@ function updatePrimitiveArray(key: string, event: Event) {
             </div>
           </fieldset>
 
-          <label
-            v-else
-            class="field"
-            :class="{ 'field--full': isLongTextField(name) || child.type === 'array' }"
-          >
+          <label v-else class="field" :class="{ 'field--full': fieldFullWidth(name, child) }">
             <span class="field__label"
               >{{ fieldLabel(name) }} <b v-if="requiredFields.has(name)">*</b></span
             >

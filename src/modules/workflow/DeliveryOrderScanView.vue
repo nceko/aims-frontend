@@ -7,9 +7,9 @@ import {
   CheckCircle2,
   Keyboard,
   PackageCheck,
+  RotateCcw,
   ScanLine,
   Trash2,
-  Truck,
 } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -31,8 +31,10 @@ interface DeliveryLine {
   lot_no?: string
   uom_code?: string
   planned_qty?: number
+  picked_qty?: number
   packed_qty?: number
   shipped_qty?: number
+  line_status?: string
   received_qty?: number
 }
 
@@ -110,6 +112,36 @@ const deviceId = (() => {
 
 const isPicking = computed(() => props.mode === 'picking')
 const isOutbound = computed(() => props.mode === 'keluar')
+const pickingCompletedStatuses = [
+  'PACKING',
+  'READY_TO_SHIP',
+  'SHIPPED',
+  'PARTIALLY_RECEIVED',
+  'RECEIVED',
+  'RECEIVED_BY_DESTINATION',
+]
+const outboundCompletedStatuses = [
+  'SHIPPED',
+  'PARTIALLY_RECEIVED',
+  'RECEIVED',
+  'RECEIVED_BY_DESTINATION',
+  'COMPLETED',
+]
+const inboundCompletedStatuses = ['RECEIVED', 'RECEIVED_BY_DESTINATION', 'COMPLETED']
+const currentStatus = computed(() => String(delivery.value?.status ?? '').toUpperCase())
+const isPickingCompleted = computed(
+  () => isPicking.value && pickingCompletedStatuses.includes(currentStatus.value),
+)
+const isOutboundCompleted = computed(
+  () => isOutbound.value && outboundCompletedStatuses.includes(currentStatus.value),
+)
+const isInboundCompleted = computed(
+  () =>
+    !isPicking.value && !isOutbound.value && inboundCompletedStatuses.includes(currentStatus.value),
+)
+const isWorkflowCompleted = computed(
+  () => isPickingCompleted.value || isOutboundCompleted.value || isInboundCompleted.value,
+)
 const title = computed(() =>
   isPicking.value
     ? 'Scan Picking Barang'
@@ -154,9 +186,14 @@ function formatNumber(value: unknown): string {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(number(value))
 }
 
-function targetQty(line: DeliveryLine): number {
+function documentQty(line: DeliveryLine): number {
   if (isPicking.value) return number(line.planned_qty)
   if (isOutbound.value) return number(line.packed_qty) || number(line.planned_qty)
+  return Math.max(number(line.shipped_qty), number(line.received_qty))
+}
+
+function targetQty(line: DeliveryLine): number {
+  if (isPicking.value || isOutbound.value) return documentQty(line)
   return Math.max(0, number(line.shipped_qty) - number(line.received_qty))
 }
 
@@ -172,11 +209,23 @@ function serialCount(lineId: string | number): number {
 }
 
 const expectedSerialCount = computed(() =>
-  serialLines.value.reduce((total, line) => total + targetQty(line), 0),
+  serialLines.value.reduce((total, line) => total + documentQty(line), 0),
 )
 const scannedSerialCount = computed(() => scannedSerials.value.length)
+const persistedPickedSerialCount = computed(() =>
+  serialLines.value.reduce((total, line) => total + number(line.picked_qty), 0),
+)
+const persistedPickedQtyCount = computed(() =>
+  qtyLines.value.reduce((total, line) => total + number(line.picked_qty), 0),
+)
+const previouslyReceivedSerialCount = computed(() =>
+  serialLines.value.reduce((total, line) => total + number(line.received_qty), 0),
+)
+const previouslyReceivedQtyCount = computed(() =>
+  qtyLines.value.reduce((total, line) => total + number(line.received_qty), 0),
+)
 const expectedQtyCount = computed(() =>
-  qtyLines.value.reduce((total, line) => total + targetQty(line), 0),
+  qtyLines.value.reduce((total, line) => total + documentQty(line), 0),
 )
 const confirmedQtyCount = computed(() =>
   qtyLines.value.reduce(
@@ -214,18 +263,31 @@ const canPost = computed(() => {
     })
   )
 })
-const displayedSerialCount = computed(() =>
-  isOutbound.value ? expectedSerialCount.value : scannedSerialCount.value,
-)
-const displayedQtyCount = computed(() =>
-  isOutbound.value ? expectedQtyCount.value : confirmedQtyCount.value,
-)
+const displayedSerialCount = computed(() => {
+  if (isOutbound.value) return expectedSerialCount.value
+  if (isPickingCompleted.value) return persistedPickedSerialCount.value
+  if (!isPicking.value && !isOutbound.value) {
+    return previouslyReceivedSerialCount.value + scannedSerialCount.value
+  }
+  return scannedSerialCount.value
+})
+const displayedQtyCount = computed(() => {
+  if (isOutbound.value) return expectedQtyCount.value
+  if (isPickingCompleted.value) return persistedPickedQtyCount.value
+  if (!isPicking.value && !isOutbound.value) {
+    return previouslyReceivedQtyCount.value + confirmedQtyCount.value
+  }
+  return confirmedQtyCount.value
+})
 const completionPercent = computed(() => {
+  if (isWorkflowCompleted.value) return 100
   if (isOutbound.value) return canPost.value ? 100 : 0
   const expected = expectedSerialCount.value + expectedQtyCount.value
   if (!expected) return 0
-  const current = Math.min(expected, scannedSerialCount.value + confirmedQtyCount.value)
-  return Math.round((current / expected) * 100)
+  const current = isPicking.value
+    ? scannedSerialCount.value + confirmedQtyCount.value
+    : displayedSerialCount.value + displayedQtyCount.value
+  return Math.round((Math.min(expected, current) / expected) * 100)
 })
 
 function persistDraft(): void {
@@ -285,13 +347,25 @@ async function loadDelivery(): Promise<void> {
     })
     initializeQtyDraft()
     restoreDraft()
+    const loadedStatus = String(delivery.value.status ?? '').toUpperCase()
     const allowed = isPicking.value
-      ? ['PICKING']
+      ? ['PICKING', ...pickingCompletedStatuses]
       : isOutbound.value
-        ? ['READY_TO_SHIP']
-        : ['SHIPPED', 'PARTIALLY_RECEIVED']
-    if (!allowed.includes(String(delivery.value.status ?? '').toUpperCase())) {
+        ? ['READY_TO_SHIP', ...outboundCompletedStatuses]
+        : ['SHIPPED', 'PARTIALLY_RECEIVED', ...inboundCompletedStatuses]
+    if (!allowed.includes(loadedStatus)) {
       error.value = `Status Surat Jalan saat ini ${String(delivery.value.status ?? 'tidak diketahui')}. Proses ${title.value.toLowerCase()} belum dapat dilakukan.`
+    } else if (isPicking.value && pickingCompletedStatuses.includes(loadedStatus)) {
+      success.value =
+        'Picking sudah selesai dikonfirmasi. Barang dapat dilanjutkan ke proses packing.'
+    } else if (isOutbound.value && outboundCompletedStatuses.includes(loadedStatus)) {
+      success.value = 'Barang sudah dikirim dan tercatat sebagai barang dalam perjalanan.'
+    } else if (
+      !isPicking.value &&
+      !isOutbound.value &&
+      inboundCompletedStatuses.includes(loadedStatus)
+    ) {
+      success.value = 'Barang sudah diterima dan stok gudang tujuan telah diperbarui.'
     }
   } catch (cause) {
     error.value = errorMessage(cause, 'Detail Surat Jalan tidak dapat dimuat.')
@@ -565,6 +639,57 @@ onBeforeUnmount(stopCamera)
       </AppCard>
 
       <AppCard
+        v-if="isPickingCompleted"
+        title="Picking sudah selesai"
+        subtitle="Hasil pemindaian telah tersimpan dan tidak perlu dipindai ulang. Lanjutkan melalui aksi Selesai Packing pada daftar Surat Jalan."
+      >
+        <div class="scan-readiness is-ready">
+          <PackageCheck :size="24" />
+          <div>
+            <strong
+              >{{ formatNumber(displayedSerialCount + displayedQtyCount) }} barang berhasil
+              diambil</strong
+            >
+            <span
+              >Status Surat Jalan saat ini {{ delivery.status }}. Data hasil picking sudah menjadi
+              sumber proses packing.</span
+            >
+          </div>
+        </div>
+        <div class="scan-table-scroll">
+          <table class="scan-workspace-table">
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Barang</th>
+                <th>Part Number</th>
+                <th>Pelacakan</th>
+                <th>Satuan</th>
+                <th>Jumlah Diambil</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(line, index) in lines" :key="String(line.delivery_line_id)">
+                <td>{{ index + 1 }}</td>
+                <td>
+                  <strong>{{ itemLabel(line) }}</strong
+                  ><small>{{ line.item_code || '-' }}</small>
+                </td>
+                <td>{{ line.part_number || '-' }}</td>
+                <td>{{ line.tracking_type || 'QTY' }}</td>
+                <td>{{ line.uom_code || '-' }}</td>
+                <td>
+                  <strong>{{ formatNumber(line.picked_qty) }}</strong>
+                </td>
+                <td><StatusBadge :value="line.line_status || 'PICKED'" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </AppCard>
+
+      <AppCard
         v-if="isOutbound"
         title="Ringkasan barang siap dikirim"
         subtitle="Data berasal dari hasil picking dan packing yang sudah dikonfirmasi. Tidak perlu memindai barang kembali."
@@ -598,10 +723,132 @@ onBeforeUnmount(stopCamera)
         </div>
       </AppCard>
 
-      <div v-if="!isOutbound" class="receipt-scan-layout">
+      <AppCard
+        v-if="isOutbound"
+        title="Barang siap dikirim"
+        subtitle="Periksa kembali barang hasil packing sebelum mengonfirmasi pengiriman."
+        flush
+      >
+        <div class="scan-table-scroll">
+          <table class="scan-workspace-table">
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Barang</th>
+                <th>Nomor Part</th>
+                <th>Pelacakan</th>
+                <th>Satuan</th>
+                <th>Jumlah Dikemas</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(line, index) in lines" :key="String(line.delivery_line_id)">
+                <td>{{ index + 1 }}</td>
+                <td>
+                  <strong>{{ itemLabel(line) }}</strong>
+                  <small>{{ line.item_code || '-' }}</small>
+                </td>
+                <td>{{ line.part_number || '-' }}</td>
+                <td>{{ line.tracking_type || 'QTY' }}</td>
+                <td>{{ line.uom_code || '-' }}</td>
+                <td>
+                  <strong>{{ formatNumber(documentQty(line)) }}</strong>
+                </td>
+                <td>
+                  <StatusBadge
+                    :value="line.line_status || (isOutboundCompleted ? 'SHIPPED' : 'PACKED')"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </AppCard>
+
+      <template v-if="isInboundCompleted">
         <AppCard
-          title="Kamera dan input pemindaian"
-          subtitle="Gunakan kamera, scanner USB, atau ketik kode secara manual."
+          title="Penerimaan selesai"
+          subtitle="Seluruh barang sudah diterima dan stok gudang tujuan telah diperbarui."
+        >
+          <div class="scan-summary-grid">
+            <div><span>Kemajuan</span><strong>100%</strong></div>
+            <div>
+              <span>Unit SERIAL</span>
+              <strong
+                >{{ formatNumber(displayedSerialCount) }} /
+                {{ formatNumber(expectedSerialCount) }}</strong
+              >
+            </div>
+            <div>
+              <span>Qty / LOT</span>
+              <strong
+                >{{ formatNumber(displayedQtyCount) }} /
+                {{ formatNumber(expectedQtyCount) }}</strong
+              >
+            </div>
+            <div>
+              <span>Total baris</span><strong>{{ lines.length }}</strong>
+            </div>
+          </div>
+          <div class="scan-progress-track" aria-label="Kemajuan penerimaan">
+            <span style="width: 100%"></span>
+          </div>
+          <div class="scan-readiness is-ready">
+            <PackageCheck :size="22" />
+            <div>
+              <strong>Barang sudah diterima</strong>
+              <span>Transaksi selesai. Tidak diperlukan pemindaian ulang.</span>
+            </div>
+          </div>
+        </AppCard>
+
+        <AppCard
+          title="Barang yang diterima"
+          subtitle="Ringkasan barang yang sudah masuk ke gudang tujuan."
+          flush
+        >
+          <div class="scan-table-scroll">
+            <table class="scan-workspace-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Barang</th>
+                  <th>Nomor Part</th>
+                  <th>Pelacakan</th>
+                  <th>Satuan</th>
+                  <th>Jumlah Diterima</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(line, index) in lines" :key="String(line.delivery_line_id)">
+                  <td>{{ index + 1 }}</td>
+                  <td>
+                    <strong>{{ itemLabel(line) }}</strong>
+                    <small>{{ line.item_code || '-' }}</small>
+                  </td>
+                  <td>{{ line.part_number || '-' }}</td>
+                  <td>{{ line.tracking_type || 'QTY' }}</td>
+                  <td>{{ line.uom_code || '-' }}</td>
+                  <td>
+                    <strong>{{ formatNumber(line.received_qty) }}</strong>
+                  </td>
+                  <td><StatusBadge value="RECEIVED" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </AppCard>
+      </template>
+
+      <div
+        v-if="!isOutbound && !isPickingCompleted && !isInboundCompleted"
+        class="receipt-scan-layout"
+      >
+        <AppCard
+          title="Kamera dan input scan"
+          subtitle="Arahkan kamera ke QR atau gunakan scanner USB/keyboard."
         >
           <div class="scanner-camera-shell" :class="{ 'is-active': cameraActive }">
             <video ref="videoRef" muted playsinline></video>
@@ -626,7 +873,7 @@ onBeforeUnmount(stopCamera)
           </div>
           <p v-if="cameraError" class="scanner-help scanner-help--warning">{{ cameraError }}</p>
           <form class="scanner-manual-entry" @submit.prevent="submitScan()">
-            <label for="delivery-scan-code"><Keyboard :size="15" /> Kode QR atau barcode</label>
+            <label for="delivery-scan-code"><Keyboard :size="15" /> Nilai QR / barcode</label>
             <div>
               <input
                 id="delivery-scan-code"
@@ -635,7 +882,7 @@ onBeforeUnmount(stopCamera)
                 class="field__control"
                 type="text"
                 autocomplete="off"
-                placeholder="Pindai atau ketik kode, lalu tekan Enter"
+                placeholder="Scan atau ketik kode, lalu Enter"
                 :disabled="scanning || Boolean(postedResult)"
               />
               <AppButton type="submit" :loading="scanning" :disabled="!scanInput.trim()"
@@ -649,8 +896,12 @@ onBeforeUnmount(stopCamera)
         </AppCard>
 
         <AppCard
-          title="Ringkasan pemindaian"
-          subtitle="Periksa kesesuaian barang sebelum melakukan posting."
+          :title="isPicking ? 'Ringkasan picking' : 'Ringkasan penerimaan'"
+          :subtitle="
+            isPicking
+              ? 'Simpan picking hanya setelah seluruh barang sesuai dengan Surat Jalan.'
+              : 'Posting penerimaan hanya aktif setelah seluruh barang tervalidasi.'
+          "
         >
           <div class="scan-summary-grid">
             <div>
@@ -690,7 +941,7 @@ onBeforeUnmount(stopCamera)
       </div>
 
       <AppCard
-        v-if="!isOutbound && qtyLines.length"
+        v-if="!isOutbound && !isPickingCompleted && !isInboundCompleted && qtyLines.length"
         title="Konfirmasi barang QTY/LOT"
         :subtitle="
           isPicking
@@ -794,7 +1045,7 @@ onBeforeUnmount(stopCamera)
       </AppCard>
 
       <AppCard
-        v-if="!isOutbound && serialLines.length"
+        v-if="!isOutbound && !isPickingCompleted && !isInboundCompleted && serialLines.length"
         title="Unit SERIAL yang sudah dipindai"
         :subtitle="`${scannedSerialCount} dari ${formatNumber(expectedSerialCount)} unit tervalidasi.`"
         flush
@@ -850,28 +1101,56 @@ onBeforeUnmount(stopCamera)
         </div>
       </AppCard>
 
-      <AppCard class="scan-post-card">
-        <div class="scan-post-actions">
-          <div>
-            <Truck :size="25" />
-            <div>
-              <strong>{{ actionLabel }}</strong
-              ><span>Backend akan memproses stok secara atomik.</span>
-            </div>
-          </div>
-          <div>
-            <AppButton
-              v-if="!isOutbound"
-              variant="ghost"
-              :disabled="posting || Boolean(postedResult)"
-              @click="resetDraft"
-              >Kosongkan Draft</AppButton
-            ><AppButton :disabled="!canPost" :loading="posting" @click="showPostConfirmation = true"
-              ><PackageCheck :size="17" /> {{ actionLabel }}</AppButton
-            >
-          </div>
+      <div v-if="!isPickingCompleted" class="scan-workspace-footer">
+        <div>
+          <strong>{{ delivery.delivery_no || 'Surat Jalan' }}</strong>
+          <span v-if="isOutboundCompleted"
+            >Barang sudah dikirim dan sedang menuju gudang tujuan.</span
+          >
+          <span v-else-if="isInboundCompleted"
+            >Penerimaan selesai dan stok gudang tujuan sudah diperbarui.</span
+          >
+          <span v-else-if="isOutbound">
+            Konfirmasi pengiriman akan mengurangi stok gudang asal dan mencatat barang dalam
+            perjalanan.
+          </span>
+          <span v-else-if="isPicking">
+            {{
+              canPost
+                ? 'Seluruh barang sudah tervalidasi dan siap disimpan sebagai hasil picking.'
+                : 'Lengkapi pemindaian sebelum menyimpan hasil picking.'
+            }}
+          </span>
+          <span v-else>
+            {{
+              canPost
+                ? 'Seluruh barang sudah tervalidasi dan siap diterima ke stok.'
+                : 'Lengkapi pemindaian sebelum menerima barang ke stok.'
+            }}
+          </span>
         </div>
-      </AppCard>
+        <div>
+          <AppButton
+            v-if="!isOutbound && !isWorkflowCompleted"
+            variant="ghost"
+            :disabled="posting || Boolean(postedResult)"
+            @click="resetDraft"
+          >
+            <RotateCcw :size="16" /> Reset Scan
+          </AppButton>
+          <AppButton
+            v-if="!isWorkflowCompleted"
+            :disabled="!canPost"
+            :loading="posting"
+            @click="showPostConfirmation = true"
+          >
+            <PackageCheck :size="17" /> {{ actionLabel }}
+          </AppButton>
+          <AppButton v-else variant="ghost" @click="router.push('/inventory/delivery-orders')">
+            <ArrowLeft :size="16" /> Kembali ke Surat Jalan
+          </AppButton>
+        </div>
+      </div>
     </template>
 
     <AppConfirmDialog

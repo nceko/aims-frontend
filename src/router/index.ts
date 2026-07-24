@@ -79,14 +79,20 @@ const router = createRouter({
         {
           path: 'inventory/direct-issues',
           name: 'inventory-direct-issues',
+          component: () => import('@/modules/workflow/DirectIssueScanView.vue'),
+          meta: { permission: 'transaction.item_usages.create' },
+        },
+        {
+          path: 'inventory/direct-issues/history',
+          name: 'inventory-direct-issues-history',
           component: () => import('@/modules/resource/ResourceWorkbenchView.vue'),
           props: { moduleKey: 'item-usages' },
           meta: {
             permission: 'transaction.item_usages.read',
-            pageTitle: 'Pengambilan Langsung',
+            pageTitle: 'Riwayat Pengambilan Langsung',
             pageDescription:
-              'Catat barang yang dikeluarkan langsung tanpa permintaan barang sebelumnya, lalu validasi QR atau quantity sebelum posting stok.',
-            createLabel: 'Catat Pengambilan',
+              'Daftar barang yang telah diambil langsung dan dicatat tanpa permintaan barang sebelumnya.',
+            createLabel: 'Scan Pengambilan',
             createDefaults: { issue_mode: 'DIRECT', usage_type: 'OPERATIONAL' },
             listQuery: { issue_mode: 'DIRECT' },
           },

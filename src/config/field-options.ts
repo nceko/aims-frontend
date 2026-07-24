@@ -139,11 +139,12 @@ export const fieldOptionSources: Record<string, FieldOptionSource> = {
   condition_status: {
     path: '',
     staticOptions: [
-      { value: 'NEW', label: 'Baru' },
-      { value: 'GOOD', label: 'Baik' },
-      { value: 'FAIR', label: 'Cukup' },
+      { value: 'UNCHECKED', label: 'Belum Diperiksa' },
+      { value: 'GOOD', label: 'Baik / Sesuai' },
       { value: 'DAMAGED', label: 'Rusak' },
-      { value: 'UNUSABLE', label: 'Tidak Dapat Digunakan' },
+      { value: 'WRONG_ITEM', label: 'Salah Barang' },
+      { value: 'SHORT_QTY', label: 'Jumlah Kurang' },
+      { value: 'OVER_QTY', label: 'Jumlah Lebih' },
     ],
   },
   priority: {

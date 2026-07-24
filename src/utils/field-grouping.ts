@@ -256,6 +256,33 @@ const CONTEXT_GROUP_COPY: Array<{ match: RegExp; copy: GroupCopy }> = [
     },
   },
   {
+    match: /(goods-?receipts?|creategoodsreceipt|penerimaan barang)/i,
+    copy: {
+      primary: {
+        title: 'Dokumen Penerimaan',
+        description: 'Nomor surat jalan vendor dan nomor faktur penerimaan.',
+      },
+      context: {
+        title: 'Referensi Pesanan & Tujuan Penerimaan',
+        description:
+          'Pilih Pesanan Pembelian terlebih dahulu; gudang dan supplier akan terisi otomatis.',
+      },
+      additional: {
+        title: 'Catatan Penerimaan',
+        description: 'Keterangan tambahan selama proses penerimaan barang.',
+      },
+      relations: {
+        title: 'Rincian Penerimaan Barang',
+        description:
+          'Periksa barang, quantity datang, quantity diterima, penolakan, kondisi, dan lot jika diperlukan.',
+      },
+      audit: {
+        title: 'Riwayat Penerimaan',
+        description: 'Pembuatan dan perubahan dokumen penerimaan barang.',
+      },
+    },
+  },
+  {
     match: /^(purchase-?orders?)\b/i,
     copy: {
       primary: { title: 'Informasi Pesanan', description: 'Tanggal dan informasi utama pesanan.' },

@@ -18,6 +18,7 @@ const [
   navigation,
   purchaseOrderLines,
   router,
+  appModal,
 ] = await Promise.all([
   read('../src/config/modules.ts'),
   read('../src/components/data/SchemaFields.vue'),
@@ -32,6 +33,7 @@ const [
   read('../src/config/navigation.ts'),
   read('../src/components/data/PurchaseOrderLinesField.vue'),
   read('../src/router/index.ts'),
+  read('../src/components/ui/AppModal.vue'),
 ])
 
 test('permintaan menampilkan gudang pemohon dan gudang pemenuh dari respons API', () => {
@@ -116,11 +118,17 @@ test('PO mendukung pengadaan pusat dan pembelian daerah dari permintaan yang sam
     purchaseRequestPicker,
     /allowedStatuses: \['APPROVED', 'WAITING_PURCHASE', 'PARTIALLY_FULFILLED'\]/,
   )
+  assert.match(workbench, /asNumber\(line\.procurement_shortage_qty\)/)
+  assert.match(workbench, /remaining - asNumber\(line\.available_stock_qty\)/)
+  assert.match(workbench, /ordered_qty: shortage/)
   assert.match(
     workbench,
-    /const shortage = Math\.max\(0, remaining - asNumber\(line\.available_stock_qty\)\)/,
+    /Quantity awal mengikuti saran kekurangan pengadaan dan tetap dapat dinaikkan/,
   )
-  assert.match(workbench, /ordered_qty: shortage/)
+  assert.match(workbench, /resolveCommonDefaultSupplier/)
+  assert.match(workbench, /dateInputValue\(request\.needed_date, fallbackExpectedDate\)/)
+  assert.match(purchaseOrderLines, /Saran pengadaan/)
+  assert.match(purchaseOrderLines, /boleh ditambah/)
   assert.match(workbench, /_remaining_qty: remaining/)
   assert.match(workbench, /_central_shortage_qty: shortage/)
   assert.match(workbench, /_requester_warehouse_id: request\.requester_warehouse_id/)
@@ -141,7 +149,7 @@ test('PO tanpa sumber permintaan menyembunyikan kolom request dan UOM mengikuti 
   assert.match(purchaseOrderLines, /:source-override="itemUOMSource"/)
   assert.match(purchaseOrderLines, /:disabled="disabled \|\| !line\.item_id"/)
   assert.doesNotMatch(workbench, /Mode pengadaan stok mandiri/)
-  assert.match(workbench, /request_line_id: ''/)
+  assert.match(workbench, /lines: lines\.filter\(\(raw\) => !asRecord\(raw\)\.request_line_id\)/)
 })
 
 test('rute lokal tidak ditawarkan sebagai transfer dan gudang turunan tetap terbaca saat dikunci', async () => {
@@ -175,4 +183,27 @@ test('pemakaian lokal dan pengambilan langsung memiliki daftar terpisah berdasar
   assert.match(router, /module\.key === 'item-usages'[\s\S]*issue_mode: 'REQUEST'/)
   assert.match(router, /inventory\/direct-issues[\s\S]*listQuery: \{ issue_mode: 'DIRECT' \}/)
   assert.match(workbench, /\.\.\.routeListQuery\.value/)
+})
+
+test('form modal autofocuses the first editable field while scan pages keep their own focus', () => {
+  assert.match(appModal, /function focusFirstField/)
+  assert.match(appModal, /data-autofocus/)
+  assert.match(appModal, /input:not\(\[type="hidden"\]\):not\(\[disabled\]\):not\(\[readonly\]\)/)
+  assert.match(appModal, /field\?\.focus\(\{ preventScroll: true \}\)/)
+})
+
+test('PO defaults and line editor follow request, lot, UOM conversion, and reciprocal pricing rules', () => {
+  assert.match(modules, /createOptionDefaults: \{ warehouse_id: 'WH-PST' \}/)
+  assert.match(workbench, /expected_date: localDateInputValue\(\), currency_code: 'IDR'/)
+  assert.match(workbench, /tracking_type: String\(line\.tracking_type \?\? ''\)\.toUpperCase\(\)/)
+  assert.match(purchaseOrderLines, /const showLotColumn = computed/)
+  assert.match(
+    purchaseOrderLines,
+    /String\(line\.tracking_type \?\? ''\)\.toUpperCase\(\) === 'LOT'/,
+  )
+  assert.match(purchaseOrderLines, /FindItemUOMConversionsByItemID/)
+  assert.match(purchaseOrderLines, /function conversionFactors/)
+  assert.match(purchaseOrderLines, /Harga Total/)
+  assert.match(purchaseOrderLines, /function updateUnitPrice/)
+  assert.match(purchaseOrderLines, /function updateTotalPrice/)
 })
