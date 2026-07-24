@@ -20,7 +20,7 @@ import StatusBadge from '@/components/data/StatusBadge.vue'
 import { executeOperation } from '@/services/api-operations'
 import { errorMessage } from '@/utils/api'
 
-type ScanMode = 'keluar' | 'masuk'
+type ScanMode = 'picking' | 'keluar' | 'masuk'
 
 interface DeliveryLine {
   delivery_line_id: string | number
@@ -50,6 +50,11 @@ interface DeliveryOrder {
   lines?: DeliveryLine[]
 }
 
+interface StockLotOption {
+  lot_no: string
+  qty_available: number
+}
+
 interface ScanPreview {
   scan_code: string
   qr_code: string
@@ -62,6 +67,7 @@ interface ScanPreview {
   uom_code?: string
   qty: number
   status?: string
+  available_lots?: StockLotOption[]
   scanned_at: string
 }
 
@@ -79,6 +85,9 @@ const scanNotice = ref('')
 const scanInput = ref('')
 const scannedSerials = ref<ScanPreview[]>([])
 const qtyDraft = reactive<Record<string, number>>({})
+const qtyScanCode = reactive<Record<string, string>>({})
+const qtyLotNo = reactive<Record<string, string>>({})
+const qtyAvailableLots = reactive<Record<string, StockLotOption[]>>({})
 const inputRef = ref<HTMLInputElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
 const cameraActive = ref(false)
@@ -99,16 +108,33 @@ const deviceId = (() => {
   return value
 })()
 
+const isPicking = computed(() => props.mode === 'picking')
 const isOutbound = computed(() => props.mode === 'keluar')
-const title = computed(() => (isOutbound.value ? 'Scan Barang Keluar' : 'Scan Barang Masuk'))
+const title = computed(() =>
+  isPicking.value
+    ? 'Scan Picking Barang'
+    : isOutbound.value
+      ? 'Konfirmasi Pengiriman'
+      : 'Scan Barang Masuk',
+)
 const actionLabel = computed(() =>
-  isOutbound.value ? 'Kirim Barang dari Gudang Asal' : 'Terima Barang di Gudang Tujuan',
+  isPicking.value
+    ? 'Konfirmasi Picking'
+    : isOutbound.value
+      ? 'Kirim Barang'
+      : 'Terima Barang di Gudang Tujuan',
 )
 const previewOperation = computed(() =>
-  isOutbound.value ? 'PreviewDeliveryOrderScanOut' : 'PreviewDeliveryOrderReceive',
+  isPicking.value || isOutbound.value
+    ? 'PreviewDeliveryOrderScanOut'
+    : 'PreviewDeliveryOrderReceive',
 )
 const postOperation = computed(() =>
-  isOutbound.value ? 'PostDeliveryOrderScannedOut' : 'PostDeliveryOrderReceived',
+  isPicking.value
+    ? 'ConfirmDeliveryOrderPicking'
+    : isOutbound.value
+      ? 'PostDeliveryOrderScannedOut'
+      : 'PostDeliveryOrderReceived',
 )
 const draftStorageKey = computed(() => `aims.delivery-scan.${props.mode}.${deliveryId.value}`)
 const lines = computed(() => (Array.isArray(delivery.value?.lines) ? delivery.value!.lines! : []))
@@ -129,9 +155,8 @@ function formatNumber(value: unknown): string {
 }
 
 function targetQty(line: DeliveryLine): number {
-  if (isOutbound.value) {
-    return number(line.packed_qty) || number(line.planned_qty)
-  }
+  if (isPicking.value) return number(line.planned_qty)
+  if (isOutbound.value) return number(line.packed_qty) || number(line.planned_qty)
   return Math.max(0, number(line.shipped_qty) - number(line.received_qty))
 }
 
@@ -163,18 +188,40 @@ const serialComplete = computed(() =>
   serialLines.value.every((line) => serialCount(line.delivery_line_id) === targetQty(line)),
 )
 const qtyComplete = computed(() =>
-  qtyLines.value.every(
-    (line) => number(qtyDraft[String(line.delivery_line_id)]) === targetQty(line),
-  ),
+  qtyLines.value.every((line) => {
+    const key = String(line.delivery_line_id)
+    const tracking = String(line.tracking_type ?? '').toUpperCase()
+    const lotReady = tracking !== 'LOT' || Boolean(qtyLotNo[key] || line.lot_no)
+    return Boolean(qtyScanCode[key]) && lotReady && number(qtyDraft[key]) === targetQty(line)
+  }),
 )
 const hasDraft = computed(() => scannedSerialCount.value > 0 || confirmedQtyCount.value > 0)
-const canPost = computed(
-  () =>
-    Boolean(delivery.value) &&
-    !postedResult.value &&
-    (isOutbound.value ? serialComplete.value && qtyComplete.value : hasDraft.value),
+const canPost = computed(() => {
+  if (!delivery.value || postedResult.value) return false
+  if (isOutbound.value) {
+    return String(delivery.value.status ?? '').toUpperCase() === 'READY_TO_SHIP'
+  }
+  if (isPicking.value) return serialComplete.value && qtyComplete.value
+  return (
+    hasDraft.value &&
+    qtyLines.value.every((line) => {
+      const key = String(line.delivery_line_id)
+      if (!number(qtyDraft[key])) return true
+      const tracking = String(line.tracking_type ?? '').toUpperCase()
+      return (
+        Boolean(qtyScanCode[key]) && (tracking !== 'LOT' || Boolean(qtyLotNo[key] || line.lot_no))
+      )
+    })
+  )
+})
+const displayedSerialCount = computed(() =>
+  isOutbound.value ? expectedSerialCount.value : scannedSerialCount.value,
+)
+const displayedQtyCount = computed(() =>
+  isOutbound.value ? expectedQtyCount.value : confirmedQtyCount.value,
 )
 const completionPercent = computed(() => {
+  if (isOutbound.value) return canPost.value ? 100 : 0
   const expected = expectedSerialCount.value + expectedQtyCount.value
   if (!expected) return 0
   const current = Math.min(expected, scannedSerialCount.value + confirmedQtyCount.value)
@@ -185,7 +232,13 @@ function persistDraft(): void {
   if (!deliveryId.value || postedResult.value) return
   window.sessionStorage.setItem(
     draftStorageKey.value,
-    JSON.stringify({ serials: scannedSerials.value, qty: { ...qtyDraft } }),
+    JSON.stringify({
+      serials: scannedSerials.value,
+      qty: { ...qtyDraft },
+      qtyScanCode: { ...qtyScanCode },
+      qtyLotNo: { ...qtyLotNo },
+      qtyAvailableLots: { ...qtyAvailableLots },
+    }),
   )
 }
 
@@ -196,11 +249,20 @@ function restoreDraft(): void {
     const parsed = JSON.parse(raw) as {
       serials?: ScanPreview[]
       qty?: Record<string, number>
+      qtyScanCode?: Record<string, string>
+      qtyLotNo?: Record<string, string>
+      qtyAvailableLots?: Record<string, StockLotOption[]>
     }
     if (Array.isArray(parsed.serials)) {
       scannedSerials.value = parsed.serials.filter((scan) => scan?.qr_code)
     }
     if (parsed.qty && typeof parsed.qty === 'object') Object.assign(qtyDraft, parsed.qty)
+    if (parsed.qtyScanCode && typeof parsed.qtyScanCode === 'object')
+      Object.assign(qtyScanCode, parsed.qtyScanCode)
+    if (parsed.qtyLotNo && typeof parsed.qtyLotNo === 'object')
+      Object.assign(qtyLotNo, parsed.qtyLotNo)
+    if (parsed.qtyAvailableLots && typeof parsed.qtyAvailableLots === 'object')
+      Object.assign(qtyAvailableLots, parsed.qtyAvailableLots)
   } catch {
     window.sessionStorage.removeItem(draftStorageKey.value)
   }
@@ -210,6 +272,7 @@ function initializeQtyDraft(): void {
   for (const line of qtyLines.value) {
     const key = String(line.delivery_line_id)
     if (!(key in qtyDraft)) qtyDraft[key] = 0
+    if (line.lot_no && !(key in qtyLotNo)) qtyLotNo[key] = line.lot_no
   }
 }
 
@@ -222,7 +285,11 @@ async function loadDelivery(): Promise<void> {
     })
     initializeQtyDraft()
     restoreDraft()
-    const allowed = isOutbound.value ? ['READY_TO_SHIP'] : ['SHIPPED', 'PARTIALLY_RECEIVED']
+    const allowed = isPicking.value
+      ? ['PICKING']
+      : isOutbound.value
+        ? ['READY_TO_SHIP']
+        : ['SHIPPED', 'PARTIALLY_RECEIVED']
     if (!allowed.includes(String(delivery.value.status ?? '').toUpperCase())) {
       error.value = `Status Surat Jalan saat ini ${String(delivery.value.status ?? 'tidak diketahui')}. Proses ${title.value.toLowerCase()} belum dapat dilakukan.`
     }
@@ -254,8 +321,22 @@ async function submitScan(rawCode?: string): Promise<void> {
       body: { scan_code: code, device_id: deviceId, app_version: '1.0.0-web' },
     })
     if (data.valid === false) throw new Error('Kode tidak valid untuk Surat Jalan ini.')
-    if (String(data.tracking_type ?? '').toUpperCase() !== 'SERIAL') {
-      throw new Error('Kode bukan unit SERIAL. Barang QTY/LOT dikonfirmasi melalui tabel jumlah.')
+    const trackingType = String(data.tracking_type ?? '').toUpperCase()
+    if (trackingType !== 'SERIAL') {
+      const lineId = String(data.delivery_line_id ?? '')
+      const line = qtyLines.value.find((entry) => String(entry.delivery_line_id) === lineId)
+      if (!line) throw new Error('QR barang tidak sesuai dengan Surat Jalan ini.')
+      qtyScanCode[lineId] = String(data.qr_code ?? data.scan_code ?? code)
+      qtyAvailableLots[lineId] = Array.isArray(data.available_lots)
+        ? (data.available_lots as StockLotOption[]).map((lot) => ({
+            lot_no: String(lot.lot_no ?? ''),
+            qty_available: number(lot.qty_available),
+          }))
+        : []
+      if (line.lot_no) qtyLotNo[lineId] = line.lot_no
+      scanNotice.value = `${itemLabel(line)} berhasil divalidasi. Tentukan lot bila diperlukan, lalu isi jumlah fisik.`
+      persistDraft()
+      return
     }
     const normalized: ScanPreview = {
       scan_code: String(data.scan_code ?? code),
@@ -309,7 +390,13 @@ function removeScan(qrCode: string): void {
 
 function resetDraft(): void {
   scannedSerials.value = []
-  for (const line of qtyLines.value) qtyDraft[String(line.delivery_line_id)] = 0
+  for (const line of qtyLines.value) {
+    const key = String(line.delivery_line_id)
+    qtyDraft[key] = 0
+    delete qtyScanCode[key]
+    delete qtyLotNo[key]
+    delete qtyAvailableLots[key]
+  }
   error.value = ''
   success.value = ''
   scanNotice.value = ''
@@ -328,18 +415,26 @@ async function postDelivery(): Promise<void> {
       body: {
         device_id: deviceId,
         app_version: '1.0.0-web',
-        serial_scans: scannedSerials.value.map((scan) => ({ qr_code: scan.qr_code })),
-        qty_scans: qtyLines.value
-          .map((line) => ({
-            delivery_line_id: line.delivery_line_id,
-            qty: number(qtyDraft[String(line.delivery_line_id)]),
-          }))
-          .filter((line) => line.qty > 0),
+        serial_scans: isOutbound.value
+          ? []
+          : scannedSerials.value.map((scan) => ({ qr_code: scan.qr_code })),
+        qty_scans: isOutbound.value
+          ? []
+          : qtyLines.value
+              .map((line) => ({
+                delivery_line_id: line.delivery_line_id,
+                scan_code: qtyScanCode[String(line.delivery_line_id)],
+                lot_no: qtyLotNo[String(line.delivery_line_id)] || line.lot_no || undefined,
+                qty: number(qtyDraft[String(line.delivery_line_id)]),
+              }))
+              .filter((line) => line.qty > 0),
       },
     })
-    success.value = isOutbound.value
-      ? 'Barang berhasil dikeluarkan dan status pengiriman diperbarui.'
-      : 'Barang berhasil diterima di gudang tujuan.'
+    success.value = isPicking.value
+      ? 'Picking berhasil dikonfirmasi dan barang siap masuk proses packing.'
+      : isOutbound.value
+        ? 'Barang berhasil dikeluarkan dan status pengiriman diperbarui.'
+        : 'Barang berhasil diterima di gudang tujuan.'
     window.sessionStorage.removeItem(draftStorageKey.value)
     showPostConfirmation.value = false
     stopCamera()
@@ -397,7 +492,13 @@ function stopCamera(): void {
 }
 
 watch(
-  () => ({ serials: scannedSerials.value, qty: { ...qtyDraft } }),
+  () => ({
+    serials: scannedSerials.value,
+    qty: { ...qtyDraft },
+    qtyScanCode: { ...qtyScanCode },
+    qtyLotNo: { ...qtyLotNo },
+    qtyAvailableLots: { ...qtyAvailableLots },
+  }),
   () => persistDraft(),
   { deep: true },
 )
@@ -417,9 +518,11 @@ onBeforeUnmount(stopCamera)
     <PageHeader
       :title="title"
       :description="
-        isOutbound
-          ? 'Pindai unit SERIAL dan konfirmasi jumlah QTY/LOT sebelum barang meninggalkan gudang asal.'
-          : 'Pindai unit SERIAL dan konfirmasi jumlah QTY/LOT yang tiba di gudang tujuan.'
+        isPicking
+          ? 'Ambil barang dari rak, pindai setiap unit SERIAL, dan pindai satu QR barang untuk QTY/LOT sebelum mengisi jumlah.'
+          : isOutbound
+            ? 'Hasil scan picking dan packing sudah tersimpan. Periksa ringkasan lalu konfirmasi pengiriman tanpa scan ulang.'
+            : 'Pindai setiap unit SERIAL dan satu QR barang QTY/LOT yang tiba di gudang tujuan.'
       "
     >
       <template #actions>
@@ -461,7 +564,41 @@ onBeforeUnmount(stopCamera)
         </div>
       </AppCard>
 
-      <div class="receipt-scan-layout">
+      <AppCard
+        v-if="isOutbound"
+        title="Ringkasan barang siap dikirim"
+        subtitle="Data berasal dari hasil picking dan packing yang sudah dikonfirmasi. Tidak perlu memindai barang kembali."
+      >
+        <div class="scan-summary-grid">
+          <div>
+            <span>Kesiapan</span><strong>{{ completionPercent }}%</strong>
+          </div>
+          <div>
+            <span>Unit SERIAL</span><strong>{{ formatNumber(expectedSerialCount) }}</strong>
+          </div>
+          <div>
+            <span>Jumlah QTY/LOT</span><strong>{{ formatNumber(expectedQtyCount) }}</strong>
+          </div>
+          <div>
+            <span>Total Baris</span><strong>{{ lines.length }}</strong>
+          </div>
+        </div>
+        <div class="scan-progress-track" aria-label="Kesiapan pengiriman">
+          <span :style="{ width: `${completionPercent}%` }"></span>
+        </div>
+        <div class="scan-readiness" :class="{ 'is-ready': canPost }">
+          <PackageCheck :size="22" />
+          <div>
+            <strong>{{ canPost ? 'Siap dikirim' : 'Belum siap dikirim' }}</strong>
+            <span>
+              Picking dan packing harus selesai sebelum stok gudang asal diposting sebagai barang
+              dalam perjalanan.
+            </span>
+          </div>
+        </div>
+      </AppCard>
+
+      <div v-if="!isOutbound" class="receipt-scan-layout">
         <AppCard
           title="Kamera dan input pemindaian"
           subtitle="Gunakan kamera, scanner USB, atau ketik kode secara manual."
@@ -521,12 +658,12 @@ onBeforeUnmount(stopCamera)
             </div>
             <div>
               <span>Unit SERIAL</span
-              ><strong>{{ scannedSerialCount }} / {{ formatNumber(expectedSerialCount) }}</strong>
+              ><strong>{{ displayedSerialCount }} / {{ formatNumber(expectedSerialCount) }}</strong>
             </div>
             <div>
               <span>Jumlah QTY/LOT</span
               ><strong
-                >{{ formatNumber(confirmedQtyCount) }} /
+                >{{ formatNumber(displayedQtyCount) }} /
                 {{ formatNumber(expectedQtyCount) }}</strong
               >
             </div>
@@ -541,11 +678,11 @@ onBeforeUnmount(stopCamera)
             <PackageCheck :size="22" />
             <div>
               <strong>{{ canPost ? 'Siap diposting' : 'Pemindaian belum siap diposting' }}</strong>
-              <span v-if="isOutbound && !serialComplete">Lengkapi seluruh unit SERIAL.</span>
-              <span v-else-if="isOutbound && !qtyComplete">Lengkapi jumlah barang QTY/LOT.</span>
-              <span v-else-if="!isOutbound && !hasDraft"
-                >Pindai atau masukkan barang yang diterima.</span
+              <span v-if="isPicking && !serialComplete">Lengkapi seluruh unit SERIAL.</span>
+              <span v-else-if="isPicking && !qtyComplete"
+                >Validasi QR dan jumlah barang QTY/LOT.</span
               >
+              <span v-else-if="!isPicking && !hasDraft">Pindai barang yang diterima.</span>
               <span v-else>Data pemindaian siap diproses.</span>
             </div>
           </div>
@@ -553,9 +690,13 @@ onBeforeUnmount(stopCamera)
       </div>
 
       <AppCard
-        v-if="qtyLines.length"
+        v-if="!isOutbound && qtyLines.length"
         title="Konfirmasi barang QTY/LOT"
-        subtitle="Masukkan jumlah fisik yang keluar atau diterima."
+        :subtitle="
+          isPicking
+            ? 'Scan QR barang lebih dahulu, lalu isi jumlah yang berhasil diambil dari rak.'
+            : 'Scan QR barang lebih dahulu, lalu isi jumlah fisiknya.'
+        "
         flush
       >
         <div class="scan-table-scroll">
@@ -574,10 +715,38 @@ onBeforeUnmount(stopCamera)
               <tr v-for="line in qtyLines" :key="String(line.delivery_line_id)">
                 <td>
                   <strong>{{ itemLabel(line) }}</strong
-                  ><small>{{ line.item_code || '-' }}</small>
+                  ><small>{{ line.item_code || '-' }}</small
+                  ><small>{{
+                    qtyScanCode[String(line.delivery_line_id)]
+                      ? 'QR tervalidasi'
+                      : 'Scan QR barang terlebih dahulu'
+                  }}</small>
                 </td>
                 <td>{{ line.tracking_type || 'QTY' }}</td>
-                <td>{{ line.lot_no || '-' }}</td>
+                <td>
+                  <select
+                    v-model="qtyLotNo[String(line.delivery_line_id)]"
+                    class="field__control scan-lot-select"
+                    :disabled="Boolean(line.lot_no) || !qtyScanCode[String(line.delivery_line_id)]"
+                    @change="persistDraft"
+                  >
+                    <option value="">
+                      {{
+                        String(line.tracking_type || '').toUpperCase() === 'LOT'
+                          ? 'Pilih lot/batch *'
+                          : 'Otomatis FIFO (opsional)'
+                      }}
+                    </option>
+                    <option
+                      v-for="lot in qtyAvailableLots[String(line.delivery_line_id)] || []"
+                      :key="lot.lot_no || '__NO_LOT__'"
+                      :value="lot.lot_no"
+                    >
+                      {{ lot.lot_no || 'Tanpa lot' }} · tersedia
+                      {{ formatNumber(lot.qty_available) }}
+                    </option>
+                  </select>
+                </td>
                 <td>{{ formatNumber(targetQty(line)) }} {{ line.uom_code || '' }}</td>
                 <td>
                   <div class="qty-confirm-control">
@@ -588,12 +757,16 @@ onBeforeUnmount(stopCamera)
                       min="0"
                       :max="targetQty(line)"
                       step="any"
-                      :disabled="Boolean(postedResult)"
+                      :disabled="
+                        Boolean(postedResult) || !qtyScanCode[String(line.delivery_line_id)]
+                      "
                       @change="validateQty(line)"
                     />
                     <button
                       type="button"
-                      :disabled="Boolean(postedResult)"
+                      :disabled="
+                        Boolean(postedResult) || !qtyScanCode[String(line.delivery_line_id)]
+                      "
                       @click="fillTargetQty(line)"
                     >
                       Gunakan target
@@ -603,6 +776,9 @@ onBeforeUnmount(stopCamera)
                 <td>
                   <StatusBadge
                     :value="
+                      qtyScanCode[String(line.delivery_line_id)] &&
+                      (String(line.tracking_type || '').toUpperCase() !== 'LOT' ||
+                        Boolean(qtyLotNo[String(line.delivery_line_id)] || line.lot_no)) &&
                       number(qtyDraft[String(line.delivery_line_id)]) === targetQty(line)
                         ? 'VALID'
                         : number(qtyDraft[String(line.delivery_line_id)]) > 0
@@ -618,7 +794,7 @@ onBeforeUnmount(stopCamera)
       </AppCard>
 
       <AppCard
-        v-if="serialLines.length"
+        v-if="!isOutbound && serialLines.length"
         title="Unit SERIAL yang sudah dipindai"
         :subtitle="`${scannedSerialCount} dari ${formatNumber(expectedSerialCount)} unit tervalidasi.`"
         flush
@@ -685,6 +861,7 @@ onBeforeUnmount(stopCamera)
           </div>
           <div>
             <AppButton
+              v-if="!isOutbound"
               variant="ghost"
               :disabled="posting || Boolean(postedResult)"
               @click="resetDraft"
@@ -701,9 +878,11 @@ onBeforeUnmount(stopCamera)
       :open="showPostConfirmation"
       :title="actionLabel"
       :message="
-        isOutbound
-          ? 'Stok gudang asal akan berkurang dan barang masuk status dalam perjalanan.'
-          : 'Stok gudang tujuan akan bertambah sesuai hasil pemindaian.'
+        isPicking
+          ? 'Hasil scan akan disimpan sebagai barang yang sudah diambil dari rak dan status berubah ke PACKING.'
+          : isOutbound
+            ? 'Hasil picking dan packing yang sudah tersimpan akan dipakai. Stok gudang asal berkurang dan barang masuk status dalam perjalanan.'
+            : 'Stok gudang tujuan akan bertambah sesuai hasil pemindaian.'
       "
       confirm-label="Ya, Proses Sekarang"
       :loading="posting"

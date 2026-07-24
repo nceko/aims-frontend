@@ -15,6 +15,12 @@ export interface GoodsReceiptQrLabel {
   part_id?: string | number
   part_number?: string
   qr_code: string
+  tracking_type?: string
+  label_type?: string
+  uom_id?: string | number
+  uom_code?: string
+  lot_no?: string
+  qty?: number
   status?: string
 }
 
@@ -85,12 +91,21 @@ async function renderQrImages(): Promise<void> {
   }
 }
 
+function isSerialLabel(label: GoodsReceiptQrLabel): boolean {
+  return String(label.tracking_type ?? '').toUpperCase() === 'SERIAL'
+}
+
 function labelTitle(label: GoodsReceiptQrLabel): string {
-  return label.item_name || label.item_code || 'Item serial'
+  return label.item_name || label.item_code || (isSerialLabel(label) ? 'Unit serial' : 'Barang')
 }
 
 function labelMeta(label: GoodsReceiptQrLabel): string {
-  const values = [label.item_code, label.part_number ? `Part: ${label.part_number}` : '']
+  const values = [
+    isSerialLabel(label) ? 'QR UNIT SERIAL' : 'QR BARANG QTY/LOT',
+    label.item_code,
+    label.part_number ? `Part: ${label.part_number}` : '',
+    isSerialLabel(label) && label.uom_code ? `UOM: ${label.uom_code}` : '',
+  ]
   return values.filter(Boolean).join(' · ')
 }
 
@@ -291,7 +306,7 @@ watch(
     <div v-else class="empty-state compact-empty">
       <QrCode :size="42" />
       <h3>Belum ada QR untuk dicetak</h3>
-      <p>Pastikan barang bertipe SERIAL dan jumlah diterima lebih dari nol.</p>
+      <p>Pastikan jumlah diterima lebih dari nol dan Anda memiliki hak akses QR.</p>
     </div>
 
     <template #footer>

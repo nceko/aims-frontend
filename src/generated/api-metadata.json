@@ -1,6 +1,6 @@
 {
   "generatedFrom": "swagger.json",
-  "operationCount": 357,
+  "operationCount": 358,
   "operations": {
     "AddCategoryGroupCategories": {
       "operationId": "AddCategoryGroupCategories",
@@ -1295,6 +1295,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -1335,17 +1339,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -3618,6 +3611,14 @@
                       "type": "string",
                       "example": "Busi"
                     },
+                    "label_type": {
+                      "type": "string",
+                      "example": "UNIT"
+                    },
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
                     "part_id": {
                       "type": "integer",
                       "example": 1
@@ -3630,6 +3631,10 @@
                       "type": "string",
                       "example": "IU-20260709-1-ABCDEFGH"
                     },
+                    "qty": {
+                      "type": "number",
+                      "example": 1
+                    },
                     "receipt_line_id": {
                       "type": "integer",
                       "example": 1
@@ -3638,7 +3643,19 @@
                       "type": "string",
                       "example": "RECEIVED"
                     },
+                    "tracking_type": {
+                      "type": "string",
+                      "example": "SERIAL"
+                    },
                     "unit_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "uom_code": {
+                      "type": "string",
+                      "example": "PCS"
+                    },
+                    "uom_id": {
                       "type": "integer",
                       "example": 1
                     }
@@ -4607,6 +4624,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -4647,17 +4668,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -5057,6 +5067,14 @@
                       "type": "string",
                       "example": "Busi"
                     },
+                    "label_type": {
+                      "type": "string",
+                      "example": "UNIT"
+                    },
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
                     "part_id": {
                       "type": "integer",
                       "example": 1
@@ -5069,6 +5087,10 @@
                       "type": "string",
                       "example": "IU-20260709-1-ABCDEFGH"
                     },
+                    "qty": {
+                      "type": "number",
+                      "example": 1
+                    },
                     "receipt_line_id": {
                       "type": "integer",
                       "example": 1
@@ -5077,7 +5099,19 @@
                       "type": "string",
                       "example": "RECEIVED"
                     },
+                    "tracking_type": {
+                      "type": "string",
+                      "example": "SERIAL"
+                    },
                     "unit_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "uom_code": {
+                      "type": "string",
+                      "example": "PCS"
+                    },
+                    "uom_id": {
                       "type": "integer",
                       "example": 1
                     }
@@ -5622,6 +5656,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -5662,17 +5700,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -6782,17 +6809,26 @@
       ],
       "body": {
         "type": "object",
-        "required": [
-          "lines"
-        ],
         "properties": {
-          "lines": {
+          "app_version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "device_id": {
+            "type": "string",
+            "example": "scanner-01"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "qty_scans": {
             "type": "array",
             "items": {
               "type": "object",
               "required": [
                 "delivery_line_id",
-                "qty"
+                "qty",
+                "scan_code"
               ],
               "properties": {
                 "delivery_line_id": {
@@ -6802,16 +6838,37 @@
                 "qty": {
                   "type": "number",
                   "example": 5
+                },
+                "scan_code": {
+                  "type": "string",
+                  "example": "IQ-1-10-2"
+                },
+                "lot_no": {
+                  "type": "string",
+                  "example": "LOT-001"
                 }
               },
-              "ref": "dto.DeliveryOrderLineQuantityRequest"
+              "ref": "dto.DeliveryOrderQtyScanRequest"
             }
           },
-          "notes": {
-            "type": "string"
+          "serial_scans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "qr_code"
+              ],
+              "properties": {
+                "qr_code": {
+                  "type": "string",
+                  "example": "IU-20260709-1-ABCDEFGH"
+                }
+              },
+              "ref": "dto.DeliveryOrderSerialScanRequest"
+            }
           }
         },
-        "ref": "dto.ConfirmDeliveryOrderLinesRequest"
+        "ref": "dto.ConfirmDeliveryOrderPickingRequest"
       },
       "response": {
         "type": "object",
@@ -9200,6 +9257,14 @@
                       "type": "string",
                       "example": "Busi"
                     },
+                    "label_type": {
+                      "type": "string",
+                      "example": "UNIT"
+                    },
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
                     "part_id": {
                       "type": "integer",
                       "example": 1
@@ -9212,6 +9277,10 @@
                       "type": "string",
                       "example": "IU-20260709-1-ABCDEFGH"
                     },
+                    "qty": {
+                      "type": "number",
+                      "example": 1
+                    },
                     "receipt_line_id": {
                       "type": "integer",
                       "example": 1
@@ -9220,7 +9289,19 @@
                       "type": "string",
                       "example": "RECEIVED"
                     },
+                    "tracking_type": {
+                      "type": "string",
+                      "example": "SERIAL"
+                    },
                     "unit_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "uom_code": {
+                      "type": "string",
+                      "example": "PCS"
+                    },
+                    "uom_id": {
                       "type": "integer",
                       "example": 1
                     }
@@ -11572,6 +11653,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -11612,17 +11697,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -15775,6 +15849,14 @@
                         "type": "string",
                         "example": "Busi"
                       },
+                      "label_type": {
+                        "type": "string",
+                        "example": "UNIT"
+                      },
+                      "lot_no": {
+                        "type": "string",
+                        "example": "LOT-001"
+                      },
                       "part_id": {
                         "type": "integer",
                         "example": 1
@@ -15787,6 +15869,10 @@
                         "type": "string",
                         "example": "IU-20260709-1-ABCDEFGH"
                       },
+                      "qty": {
+                        "type": "number",
+                        "example": 1
+                      },
                       "receipt_line_id": {
                         "type": "integer",
                         "example": 1
@@ -15795,7 +15881,19 @@
                         "type": "string",
                         "example": "RECEIVED"
                       },
+                      "tracking_type": {
+                        "type": "string",
+                        "example": "SERIAL"
+                      },
                       "unit_id": {
+                        "type": "integer",
+                        "example": 1
+                      },
+                      "uom_code": {
+                        "type": "string",
+                        "example": "PCS"
+                      },
+                      "uom_id": {
                         "type": "integer",
                         "example": 1
                       }
@@ -16809,7 +16907,19 @@
       "tags": [
         "Transaction - Item Usages"
       ],
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "issue_mode",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "Filter source: DIRECT or REQUEST",
+          "enum": [
+            "DIRECT",
+            "REQUEST"
+          ]
+        }
+      ],
       "body": null,
       "response": {
         "type": "object",
@@ -17819,6 +17929,10 @@
                   "type": "string",
                   "example": "PO-202607-000001"
                 },
+                "procurement_route": {
+                  "type": "string",
+                  "example": "CENTRAL_STOCK"
+                },
                 "source_request_id": {
                   "type": "integer",
                   "example": 1
@@ -17859,17 +17973,6 @@
                 "warehouse_name": {
                   "type": "string",
                   "example": "Gudang Pusat"
-                },
-                "procurement_route": {
-                  "type": "string",
-                  "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                  "example": "CENTRAL_STOCK",
-                  "enum": [
-                    "CENTRAL_STOCK",
-                    "LOCAL_STOCK",
-                    "CENTRAL_REQUEST",
-                    "LOCAL_REQUEST"
-                  ]
                 }
               },
               "ref": "dto.PurchaseOrderResponse"
@@ -22447,6 +22550,10 @@
                   "type": "string",
                   "example": "PO-202607-000001"
                 },
+                "procurement_route": {
+                  "type": "string",
+                  "example": "CENTRAL_STOCK"
+                },
                 "source_request_id": {
                   "type": "integer",
                   "example": 1
@@ -22487,17 +22594,6 @@
                 "warehouse_name": {
                   "type": "string",
                   "example": "Gudang Pusat"
-                },
-                "procurement_route": {
-                  "type": "string",
-                  "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                  "example": "CENTRAL_STOCK",
-                  "enum": [
-                    "CENTRAL_STOCK",
-                    "LOCAL_STOCK",
-                    "CENTRAL_REQUEST",
-                    "LOCAL_REQUEST"
-                  ]
                 }
               },
               "ref": "dto.PurchaseOrderResponse"
@@ -22816,6 +22912,14 @@
                       "type": "string",
                       "example": "Busi"
                     },
+                    "label_type": {
+                      "type": "string",
+                      "example": "UNIT"
+                    },
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
                     "part_id": {
                       "type": "integer",
                       "example": 1
@@ -22828,6 +22932,10 @@
                       "type": "string",
                       "example": "IU-20260709-1-ABCDEFGH"
                     },
+                    "qty": {
+                      "type": "number",
+                      "example": 1
+                    },
                     "receipt_line_id": {
                       "type": "integer",
                       "example": 1
@@ -22836,7 +22944,19 @@
                       "type": "string",
                       "example": "RECEIVED"
                     },
+                    "tracking_type": {
+                      "type": "string",
+                      "example": "SERIAL"
+                    },
                     "unit_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "uom_code": {
+                      "type": "string",
+                      "example": "PCS"
+                    },
+                    "uom_id": {
                       "type": "integer",
                       "example": 1
                     }
@@ -25903,6 +26023,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -25943,17 +26067,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -28222,6 +28335,14 @@
                   "type": "string",
                   "example": "Busi"
                 },
+                "label_type": {
+                  "type": "string",
+                  "example": "UNIT"
+                },
+                "lot_no": {
+                  "type": "string",
+                  "example": "LOT-001"
+                },
                 "part_id": {
                   "type": "integer",
                   "example": 1
@@ -28234,6 +28355,10 @@
                   "type": "string",
                   "example": "IU-20260709-1-ABCDEFGH"
                 },
+                "qty": {
+                  "type": "number",
+                  "example": 1
+                },
                 "receipt_line_id": {
                   "type": "integer",
                   "example": 1
@@ -28242,7 +28367,19 @@
                   "type": "string",
                   "example": "RECEIVED"
                 },
+                "tracking_type": {
+                  "type": "string",
+                  "example": "SERIAL"
+                },
                 "unit_id": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "uom_code": {
+                  "type": "string",
+                  "example": "PCS"
+                },
+                "uom_id": {
                   "type": "integer",
                   "example": 1
                 }
@@ -31544,6 +31681,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -31584,17 +31725,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -31760,6 +31890,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -31800,17 +31934,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -31976,6 +32099,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -32016,17 +32143,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -32695,7 +32811,8 @@
               "type": "object",
               "required": [
                 "delivery_line_id",
-                "qty"
+                "qty",
+                "scan_code"
               ],
               "properties": {
                 "delivery_line_id": {
@@ -32705,6 +32822,14 @@
                 "qty": {
                   "type": "number",
                   "example": 5
+                },
+                "scan_code": {
+                  "type": "string",
+                  "example": "IQ-1-10-2"
+                },
+                "lot_no": {
+                  "type": "string",
+                  "example": "LOT-001"
                 }
               },
               "ref": "dto.DeliveryOrderQtyScanRequest"
@@ -32838,7 +32963,8 @@
               "type": "object",
               "required": [
                 "delivery_line_id",
-                "qty"
+                "qty",
+                "scan_code"
               ],
               "properties": {
                 "delivery_line_id": {
@@ -32848,6 +32974,14 @@
                 "qty": {
                   "type": "number",
                   "example": 5
+                },
+                "scan_code": {
+                  "type": "string",
+                  "example": "IQ-1-10-2"
+                },
+                "lot_no": {
+                  "type": "string",
+                  "example": "LOT-001"
                 }
               },
               "ref": "dto.DeliveryOrderQtyScanRequest"
@@ -33015,12 +33149,21 @@
       "body": {
         "type": "object",
         "properties": {
+          "app_version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "device_id": {
+            "type": "string",
+            "example": "scanner-01"
+          },
           "qtys": {
             "type": "array",
             "items": {
               "type": "object",
               "required": [
                 "qty",
+                "scan_code",
                 "usage_line_id"
               ],
               "properties": {
@@ -33028,9 +33171,17 @@
                   "type": "number",
                   "example": 1
                 },
+                "scan_code": {
+                  "type": "string",
+                  "example": "IQ-1-10-2"
+                },
                 "usage_line_id": {
                   "type": "integer",
                   "example": 1
+                },
+                "lot_no": {
+                  "type": "string",
+                  "example": "LOT-001"
                 }
               },
               "ref": "dto.ItemUsageQtyRequest"
@@ -33136,7 +33287,8 @@
               "type": "object",
               "required": [
                 "qty",
-                "receipt_line_id"
+                "receipt_line_id",
+                "scan_code"
               ],
               "properties": {
                 "qty": {
@@ -33146,6 +33298,10 @@
                 "receipt_line_id": {
                   "type": "integer",
                   "example": 1
+                },
+                "scan_code": {
+                  "type": "string",
+                  "example": "IQ-1-10-2"
                 }
               },
               "ref": "dto.QtyGoodsReceiptScanRequest"
@@ -34178,6 +34334,23 @@
               "valid": {
                 "type": "boolean",
                 "example": true
+              },
+              "available_lots": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
+                    "qty_available": {
+                      "type": "number",
+                      "example": 5
+                    }
+                  },
+                  "ref": "dto.StockLotOptionResponse"
+                }
               }
             },
             "ref": "dto.DeliveryOrderScanPreviewResponse"
@@ -34314,6 +34487,23 @@
               "valid": {
                 "type": "boolean",
                 "example": true
+              },
+              "available_lots": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
+                    "qty_available": {
+                      "type": "number",
+                      "example": 5
+                    }
+                  },
+                  "ref": "dto.StockLotOptionResponse"
+                }
               }
             },
             "ref": "dto.DeliveryOrderScanPreviewResponse"
@@ -34498,6 +34688,14 @@
           "scan_code"
         ],
         "properties": {
+          "app_version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "device_id": {
+            "type": "string",
+            "example": "scanner-01"
+          },
           "scan_code": {
             "type": "string",
             "example": "IU-20260709-1-ABCDEFGH"
@@ -34571,6 +34769,23 @@
               "valid": {
                 "type": "boolean",
                 "example": true
+              },
+              "available_lots": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
+                    "qty_available": {
+                      "type": "number",
+                      "example": 5
+                    }
+                  },
+                  "ref": "dto.StockLotOptionResponse"
+                }
               }
             },
             "ref": "dto.ItemUsageScanPreviewResponse"
@@ -36223,6 +36438,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -36263,17 +36482,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -39552,6 +39760,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -39592,17 +39804,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -43102,6 +43303,14 @@
                       "type": "string",
                       "example": "Busi"
                     },
+                    "label_type": {
+                      "type": "string",
+                      "example": "UNIT"
+                    },
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
                     "part_id": {
                       "type": "integer",
                       "example": 1
@@ -43114,6 +43323,10 @@
                       "type": "string",
                       "example": "IU-20260709-1-ABCDEFGH"
                     },
+                    "qty": {
+                      "type": "number",
+                      "example": 1
+                    },
                     "receipt_line_id": {
                       "type": "integer",
                       "example": 1
@@ -43122,7 +43335,19 @@
                       "type": "string",
                       "example": "RECEIVED"
                     },
+                    "tracking_type": {
+                      "type": "string",
+                      "example": "SERIAL"
+                    },
                     "unit_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "uom_code": {
+                      "type": "string",
+                      "example": "PCS"
+                    },
+                    "uom_id": {
                       "type": "integer",
                       "example": 1
                     }
@@ -43475,6 +43700,14 @@
                       "type": "string",
                       "example": "Busi"
                     },
+                    "label_type": {
+                      "type": "string",
+                      "example": "UNIT"
+                    },
+                    "lot_no": {
+                      "type": "string",
+                      "example": "LOT-001"
+                    },
                     "part_id": {
                       "type": "integer",
                       "example": 1
@@ -43487,6 +43720,10 @@
                       "type": "string",
                       "example": "IU-20260709-1-ABCDEFGH"
                     },
+                    "qty": {
+                      "type": "number",
+                      "example": 1
+                    },
                     "receipt_line_id": {
                       "type": "integer",
                       "example": 1
@@ -43495,7 +43732,19 @@
                       "type": "string",
                       "example": "RECEIVED"
                     },
+                    "tracking_type": {
+                      "type": "string",
+                      "example": "SERIAL"
+                    },
                     "unit_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "uom_code": {
+                      "type": "string",
+                      "example": "PCS"
+                    },
+                    "uom_id": {
                       "type": "integer",
                       "example": 1
                     }
@@ -45626,6 +45875,10 @@
                 "type": "string",
                 "example": "PO-202607-000001"
               },
+              "procurement_route": {
+                "type": "string",
+                "example": "CENTRAL_STOCK"
+              },
               "source_request_id": {
                 "type": "integer",
                 "example": 1
@@ -45666,17 +45919,6 @@
               "warehouse_name": {
                 "type": "string",
                 "example": "Gudang Pusat"
-              },
-              "procurement_route": {
-                "type": "string",
-                "description": "Jalur pengadaan yang dihitung dari sumber permintaan dan gudang penerima.",
-                "example": "CENTRAL_STOCK",
-                "enum": [
-                  "CENTRAL_STOCK",
-                  "LOCAL_STOCK",
-                  "CENTRAL_REQUEST",
-                  "LOCAL_REQUEST"
-                ]
               }
             },
             "ref": "dto.PurchaseOrderResponse"
@@ -47678,6 +47920,77 @@
           "type": "string",
           "required": false,
           "description": "Search keyword"
+        }
+      ],
+      "body": null,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "example": "CODE"
+                },
+                "company_code": {
+                  "type": "string",
+                  "example": "BST"
+                },
+                "company_id": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "company_name": {
+                  "type": "string",
+                  "example": "PT Baraka Sarana Tama"
+                },
+                "label": {
+                  "type": "string",
+                  "example": "CODE - Name"
+                },
+                "name": {
+                  "type": "string",
+                  "example": "Name"
+                },
+                "value": {
+                  "type": "string",
+                  "example": "1"
+                }
+              },
+              "ref": "routes.OptionResponse"
+            }
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "ref": "routes.OptionListSuccessResponse"
+      }
+    },
+    "itemUOMsOptionsSwagger": {
+      "operationId": "itemUOMsOptionsSwagger",
+      "method": "GET",
+      "path": "/api/v1/items/{id}/uoms/options",
+      "summary": "Item UOM options",
+      "description": "Mengambil UOM dasar item dan seluruh UOM yang terhubung melalui konfigurasi konversi aktif item tersebut.",
+      "tags": [
+        "Options"
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "type": "integer",
+          "required": true,
+          "description": "Item ID"
         }
       ],
       "body": null,

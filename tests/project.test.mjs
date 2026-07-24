@@ -796,8 +796,11 @@ test('delivery workflow exposes picking packing and scan stages', async () => {
     new URL('../src/modules/workflow/DeliveryOrderScanView.vue', import.meta.url),
     'utf8',
   )
+  assert.match(router, /delivery-orders\/:id\/picking/)
+  assert.match(router, /props: \{ mode: 'picking' \}/)
   assert.match(router, /delivery-orders\/:id\/scan-out/)
   assert.match(router, /delivery-orders\/:id\/scan-in/)
+  assert.match(modules, /handler: 'delivery-order-picking'/)
   assert.match(modules, /handler: 'delivery-order-scan-out'/)
   assert.match(modules, /handler: 'delivery-order-scan-in'/)
   assert.match(scanView, /PreviewDeliveryOrderScanOut/)
@@ -805,6 +808,46 @@ test('delivery workflow exposes picking packing and scan stages', async () => {
   assert.match(scanView, /PreviewDeliveryOrderReceive/)
   assert.match(scanView, /PostDeliveryOrderReceived/)
   assert.match(scanView, /BrowserQRCodeReader/)
+})
+
+test('QR lifecycle uses procurement labels and scan-aware picking without duplicate outbound scans', async () => {
+  const receiptScan = await readFile(
+    new URL('../src/modules/workflow/GoodsReceiptScanInView.vue', import.meta.url),
+    'utf8',
+  )
+  const deliveryScan = await readFile(
+    new URL('../src/modules/workflow/DeliveryOrderScanView.vue', import.meta.url),
+    'utf8',
+  )
+  const usageScan = await readFile(
+    new URL('../src/modules/workflow/ItemUsageScanView.vue', import.meta.url),
+    'utf8',
+  )
+  const qrModal = await readFile(
+    new URL('../src/components/data/GoodsReceiptQrModal.vue', import.meta.url),
+    'utf8',
+  )
+  const metadata = JSON.parse(
+    await readFile(new URL('../src/generated/api-metadata.json', import.meta.url), 'utf8'),
+  )
+
+  assert.match(receiptScan, /transaction\.goods_receipts\.generate_qr/)
+  assert.match(receiptScan, /scan_code: qtyScanCode/)
+  assert.match(usageScan, /scan_code: qtyScanCode/)
+  assert.match(deliveryScan, /ConfirmDeliveryOrderPicking/)
+  assert.match(deliveryScan, /isOutbound\.value\s*\? \[\]/)
+  assert.match(deliveryScan, /Tidak perlu memindai barang kembali/)
+  assert.match(qrModal, /QR UNIT SERIAL/)
+  assert.match(qrModal, /QR BARANG QTY\/LOT/)
+  assert.ok(
+    metadata.operations.ConfirmDeliveryOrderPicking.body.properties.qty_scans.items.properties
+      .scan_code,
+  )
+  assert.ok(
+    metadata.operations.PostScannedGoodsReceiptToStock.body.properties.qty_scans.items.properties
+      .scan_code,
+  )
+  assert.ok(metadata.operations.PostItemUsage.body.properties.qtys.items.properties.scan_code)
 })
 
 test('complaint workflow exposes return and replacement lifecycle actions', async () => {
@@ -865,4 +908,39 @@ test('direct asset registration supports an optional initial assignment', async 
   assert.match(directAssetView, /initial_assignment:/)
   assert.match(directAssetView, /Langsung tugaskan aset setelah registrasi/)
   assert.match(directAssetView, /responsibility_type/)
+})
+
+test('SERIAL, QTY, and LOT workflows expose distinct lot rules', async () => {
+  const usageScan = await readFile(
+    new URL('../src/modules/workflow/ItemUsageScanView.vue', import.meta.url),
+    'utf8',
+  )
+  const deliveryScan = await readFile(
+    new URL('../src/modules/workflow/DeliveryOrderScanView.vue', import.meta.url),
+    'utf8',
+  )
+  const receiptScan = await readFile(
+    new URL('../src/modules/workflow/GoodsReceiptScanInView.vue', import.meta.url),
+    'utf8',
+  )
+  const metadata = JSON.parse(
+    await readFile(new URL('../src/generated/api-metadata.json', import.meta.url), 'utf8'),
+  )
+
+  assert.match(usageScan, /Otomatis FIFO \(opsional\)/)
+  assert.match(usageScan, /Pilih lot\/batch \*/)
+  assert.match(usageScan, /lot_no: qtyLotNo/)
+  assert.match(deliveryScan, /Otomatis FIFO \(opsional\)/)
+  assert.match(deliveryScan, /Pilih lot\/batch \*/)
+  assert.match(deliveryScan, /lot_no: qtyLotNo/)
+  assert.match(receiptScan, /tracking !== 'LOT'/)
+  assert.match(receiptScan, /Wajib diisi sebelum pemeriksaan/)
+  assert.ok(metadata.operations.PostItemUsage.body.properties.qtys.items.properties.lot_no)
+  assert.ok(
+    metadata.operations.ConfirmDeliveryOrderPicking.body.properties.qty_scans.items.properties
+      .lot_no,
+  )
+  assert.ok(
+    metadata.operations.PostDeliveryOrderReceived.body.properties.qty_scans.items.properties.lot_no,
+  )
 })

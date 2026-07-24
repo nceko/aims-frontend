@@ -97,6 +97,7 @@ const showPostConfirmation = ref(false)
 const generatedCodes = ref<GoodsReceiptQrLabel[]>([])
 const scannedSerials = ref<ScanPreview[]>([])
 const qtyDraft = reactive<Record<string, number>>({})
+const qtyScanCode = reactive<Record<string, string>>({})
 const postedResult = ref<Record<string, unknown> | null>(null)
 
 let scannerControls: ScannerControls | null = null
@@ -150,6 +151,12 @@ function normalizeQrLabels(value: unknown): GoodsReceiptQrLabel[] {
       part_id: entry.part_id as string | number | undefined,
       part_number: typeof entry.part_number === 'string' ? entry.part_number : undefined,
       qr_code: String(entry.qr_code),
+      tracking_type: typeof entry.tracking_type === 'string' ? entry.tracking_type : undefined,
+      label_type: typeof entry.label_type === 'string' ? entry.label_type : undefined,
+      uom_id: entry.uom_id as string | number | undefined,
+      uom_code: typeof entry.uom_code === 'string' ? entry.uom_code : undefined,
+      lot_no: typeof entry.lot_no === 'string' ? entry.lot_no : undefined,
+      qty: typeof entry.qty === 'number' ? entry.qty : Number(entry.qty ?? 0),
       status: typeof entry.status === 'string' ? entry.status : undefined,
     }))
 }
@@ -190,9 +197,16 @@ const serialComplete = computed(() =>
   ),
 )
 const qtyComplete = computed(() =>
-  qtyLines.value.every(
-    (line) => toNumber(qtyDraft[String(line.receipt_line_id)]) === toNumber(line.accepted_qty),
-  ),
+  qtyLines.value.every((line) => {
+    const key = String(line.receipt_line_id)
+    const tracking = String(line.tracking_type ?? '').toUpperCase()
+    const lotReady = tracking !== 'LOT' || Boolean(String(line.lot_no ?? '').trim())
+    return (
+      Boolean(qtyScanCode[key]) &&
+      lotReady &&
+      toNumber(qtyDraft[key]) === toNumber(line.accepted_qty)
+    )
+  }),
 )
 const canPost = computed(
   () =>
@@ -228,6 +242,7 @@ function persistDraft(): void {
     JSON.stringify({
       serials: scannedSerials.value,
       qty: { ...qtyDraft },
+      qtyScanCode: { ...qtyScanCode },
     }),
   )
 }
@@ -239,6 +254,7 @@ function restoreDraft(): void {
     const parsed = JSON.parse(raw) as {
       serials?: ScanPreview[]
       qty?: Record<string, number>
+      qtyScanCode?: Record<string, string>
     }
     if (Array.isArray(parsed.serials)) {
       scannedSerials.value = parsed.serials.filter(
@@ -246,6 +262,8 @@ function restoreDraft(): void {
       )
     }
     if (parsed.qty && typeof parsed.qty === 'object') Object.assign(qtyDraft, parsed.qty)
+    if (parsed.qtyScanCode && typeof parsed.qtyScanCode === 'object')
+      Object.assign(qtyScanCode, parsed.qtyScanCode)
   } catch {
     window.sessionStorage.removeItem(draftStorageKey.value)
   }
@@ -282,8 +300,8 @@ async function loadReceipt(): Promise<void> {
 }
 
 async function generateQr(): Promise<void> {
-  if (!serialLines.value.length) {
-    error.value = 'Goods Receipt ini tidak memiliki item SERIAL yang membutuhkan QR.'
+  if (!lines.value.some((line) => toNumber(line.accepted_qty) > 0)) {
+    error.value = 'Goods Receipt ini tidak memiliki barang diterima yang membutuhkan label QR.'
     return
   }
   generatingQr.value = true
@@ -314,7 +332,7 @@ async function generateQr(): Promise<void> {
     if (!generatedCodes.value.length) {
       error.value =
         generationFailure ||
-        'QR belum dapat dibuat. Pastikan item bertipe SERIAL, accepted quantity lebih dari nol, dan penerimaan sudah CHECKED.'
+        'QR belum dapat dibuat. Pastikan accepted quantity lebih dari nol dan penerimaan sudah CHECKED.'
       return
     }
     success.value = generated.length
@@ -366,10 +384,15 @@ async function submitScan(rawCode?: string): Promise<void> {
     const data = asRecord(preview)
     if (data.valid === false) throw new Error('QR tidak valid untuk Goods Receipt ini.')
     if (data.already_posted === true) throw new Error('QR ini sudah pernah diposting ke stok.')
-    if (String(data.tracking_type ?? '').toUpperCase() !== 'SERIAL') {
-      throw new Error(
-        'Kode yang dipindai bukan unit SERIAL. Item QTY/LOT dikonfirmasi pada tabel quantity.',
-      )
+    const trackingType = String(data.tracking_type ?? '').toUpperCase()
+    if (trackingType !== 'SERIAL') {
+      const lineId = String(data.receipt_line_id ?? '')
+      const line = qtyLines.value.find((entry) => String(entry.receipt_line_id) === lineId)
+      if (!line) throw new Error('QR barang tidak sesuai dengan baris penerimaan ini.')
+      qtyScanCode[lineId] = String(data.qr_code ?? data.scan_code ?? code)
+      scanNotice.value = `${itemLabel(line)} berhasil divalidasi. Silakan isi jumlah fisik.`
+      persistDraft()
+      return
     }
 
     const normalized: ScanPreview = {
@@ -425,7 +448,11 @@ function validateQty(line: ReceiptLine): void {
 
 function resetDraft(): void {
   scannedSerials.value = []
-  for (const line of qtyLines.value) qtyDraft[String(line.receipt_line_id)] = 0
+  for (const line of qtyLines.value) {
+    const key = String(line.receipt_line_id)
+    qtyDraft[key] = 0
+    delete qtyScanCode[key]
+  }
   scanNotice.value = ''
   success.value = ''
   error.value = ''
@@ -450,6 +477,7 @@ async function postToStock(): Promise<void> {
           qty_scans: qtyLines.value
             .map((line) => ({
               receipt_line_id: line.receipt_line_id,
+              scan_code: qtyScanCode[String(line.receipt_line_id)],
               qty: toNumber(qtyDraft[String(line.receipt_line_id)]),
             }))
             .filter((line) => line.qty > 0),
@@ -524,7 +552,7 @@ function stopCamera(): void {
 }
 
 watch(
-  () => ({ serials: scannedSerials.value, qty: { ...qtyDraft } }),
+  () => ({ serials: scannedSerials.value, qty: { ...qtyDraft }, qtyScanCode: { ...qtyScanCode } }),
   () => persistDraft(),
   { deep: true },
 )
@@ -584,16 +612,19 @@ onBeforeUnmount(stopCamera)
           </div>
           <div class="receipt-scan-document__qr-actions">
             <AppButton
-              v-if="serialLines.length && auth.can('transaction.goods_receipts.generate_qr')"
+              v-if="
+                lines.some((line) => toNumber(line.accepted_qty) > 0) &&
+                auth.can('transaction.goods_receipts.generate_qr')
+              "
               variant="secondary"
               :loading="generatingQr"
               :disabled="receipt.status !== 'CHECKED'"
               @click="generateQr"
             >
-              <QrCode :size="16" /> Buat & Cetak QR
+              <QrCode :size="16" /> Muat / Cetak QR
             </AppButton>
             <AppButton
-              v-if="serialLines.length"
+              v-if="generatedCodes.length && auth.can('transaction.goods_receipts.generate_qr')"
               variant="ghost"
               :disabled="!generatedCodes.length"
               @click="openQrPreview"
@@ -691,9 +722,9 @@ onBeforeUnmount(stopCamera)
             <div>
               <strong>{{ canPost ? 'Siap diposting ke stok' : 'Validasi belum lengkap' }}</strong>
               <span v-if="!serialComplete">Lengkapi seluruh QR item SERIAL.</span>
-              <span v-else-if="!qtyComplete"
-                >Konfirmasi jumlah barang QTY/LOT sesuai jumlah yang diterima.</span
-              >
+              <span v-else-if="!qtyComplete">
+                Konfirmasi jumlah barang dan pastikan item LOT memiliki nomor lot/batch.
+              </span>
               <span v-else>Semua item sudah sesuai dengan penerimaan.</span>
             </div>
           </div>
@@ -722,10 +753,24 @@ onBeforeUnmount(stopCamera)
               <tr v-for="line in qtyLines" :key="String(line.receipt_line_id)">
                 <td>
                   <strong>{{ itemLabel(line) }}</strong>
-                  <small>{{ line.item_code || '-' }}</small>
+                  <small>{{ line.item_code || '-' }}</small
+                  ><small>{{
+                    qtyScanCode[String(line.receipt_line_id)]
+                      ? 'QR tervalidasi'
+                      : 'Scan QR barang terlebih dahulu'
+                  }}</small>
                 </td>
                 <td>{{ line.tracking_type || 'QTY' }}</td>
-                <td>{{ line.lot_no || '-' }}</td>
+                <td>
+                  <strong v-if="line.lot_no">{{ line.lot_no }}</strong>
+                  <span
+                    v-else-if="String(line.tracking_type || '').toUpperCase() === 'LOT'"
+                    class="text-danger"
+                  >
+                    Wajib diisi sebelum pemeriksaan
+                  </span>
+                  <span v-else>Opsional</span>
+                </td>
                 <td>{{ formatNumber(toNumber(line.accepted_qty)) }} {{ line.uom_code || '' }}</td>
                 <td>
                   <div class="qty-confirm-control">
@@ -736,12 +781,16 @@ onBeforeUnmount(stopCamera)
                       min="0"
                       :max="toNumber(line.accepted_qty)"
                       step="any"
-                      :disabled="Boolean(postedResult)"
+                      :disabled="
+                        Boolean(postedResult) || !qtyScanCode[String(line.receipt_line_id)]
+                      "
                       @change="validateQty(line)"
                     />
                     <button
                       type="button"
-                      :disabled="Boolean(postedResult)"
+                      :disabled="
+                        Boolean(postedResult) || !qtyScanCode[String(line.receipt_line_id)]
+                      "
                       @click="fillAcceptedQty(line)"
                     >
                       Gunakan jumlah diterima
@@ -751,8 +800,9 @@ onBeforeUnmount(stopCamera)
                 <td>
                   <StatusBadge
                     :value="
+                      qtyScanCode[String(line.receipt_line_id)] &&
                       toNumber(qtyDraft[String(line.receipt_line_id)]) ===
-                      toNumber(line.accepted_qty)
+                        toNumber(line.accepted_qty)
                         ? 'VALID'
                         : 'PENDING'
                     "

@@ -853,14 +853,23 @@ async function beginAction(action: ResourceActionDefinition, row?: Record<string
     await router.push(`/procurement/goods-receipts/${encodeURIComponent(String(id))}/scan-in`)
     return
   }
-  if (action.handler === 'delivery-order-scan-out' || action.handler === 'delivery-order-scan-in') {
+  if (
+    action.handler === 'delivery-order-picking' ||
+    action.handler === 'delivery-order-scan-out' ||
+    action.handler === 'delivery-order-scan-in'
+  ) {
     if (!row) return
     const id = rowId(row)
     if (id === undefined) {
       error.value = 'ID Surat Jalan tidak ditemukan.'
       return
     }
-    const scanPath = action.handler === 'delivery-order-scan-out' ? 'scan-out' : 'scan-in'
+    const scanPath =
+      action.handler === 'delivery-order-picking'
+        ? 'picking'
+        : action.handler === 'delivery-order-scan-out'
+          ? 'scan-out'
+          : 'scan-in'
     await router.push(`/inventory/delivery-orders/${encodeURIComponent(String(id))}/${scanPath}`)
     return
   }

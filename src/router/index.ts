@@ -44,6 +44,13 @@ const router = createRouter({
           meta: { permission: 'transaction.goods_receipts.scan' },
         },
         {
+          path: 'inventory/delivery-orders/:id/picking',
+          name: 'delivery-order-picking',
+          component: () => import('@/modules/workflow/DeliveryOrderScanView.vue'),
+          props: { mode: 'picking' },
+          meta: { permission: 'transaction.delivery_orders.confirm_picking' },
+        },
+        {
           path: 'inventory/delivery-orders/:id/scan-out',
           name: 'delivery-order-scan-out',
           component: () => import('@/modules/workflow/DeliveryOrderScanView.vue'),

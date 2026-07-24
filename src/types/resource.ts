@@ -57,6 +57,7 @@ export interface ResourceActionDefinition {
     | 'generate-qr-labels'
     | 'qr-labels'
     | 'goods-receipt-scan-in'
+    | 'delivery-order-picking'
     | 'delivery-order-scan-out'
     | 'delivery-order-scan-in'
     | 'item-usage-scan'

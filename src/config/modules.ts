@@ -912,6 +912,7 @@ export const resourceModules: Record<string, ResourceModuleDefinition> = {
         label: 'Selesai Picking',
         permission: 'transaction.delivery_orders.confirm_picking',
         statuses: ['PICKING'],
+        handler: 'delivery-order-picking',
       },
       {
         operationId: 'ConfirmDeliveryOrderPacking',

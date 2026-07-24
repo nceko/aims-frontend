@@ -47,6 +47,11 @@ interface ItemUsage {
   lines?: UsageLine[]
 }
 
+interface StockLotOption {
+  lot_no: string
+  qty_available: number
+}
+
 interface ScanPreview {
   scan_code: string
   qr_code: string
@@ -61,6 +66,7 @@ interface ScanPreview {
   lot_no?: string
   status?: string
   valid?: boolean
+  available_lots?: StockLotOption[]
   scanned_at: string
 }
 
@@ -88,6 +94,9 @@ const cameraStarting = ref(false)
 const showPostConfirmation = ref(false)
 const scannedSerials = ref<ScanPreview[]>([])
 const qtyDraft = reactive<Record<string, number>>({})
+const qtyScanCode = reactive<Record<string, string>>({})
+const qtyLotNo = reactive<Record<string, string>>({})
+const qtyAvailableLots = reactive<Record<string, StockLotOption[]>>({})
 const postedResult = ref<Record<string, unknown> | null>(null)
 
 let scannerControls: ScannerControls | null = null
@@ -134,9 +143,12 @@ const serialComplete = computed(() =>
   serialLines.value.every((line) => scannedCountForLine(line.usage_line_id) === toNumber(line.qty)),
 )
 const qtyComplete = computed(() =>
-  qtyLines.value.every(
-    (line) => toNumber(qtyDraft[String(line.usage_line_id)]) === toNumber(line.qty),
-  ),
+  qtyLines.value.every((line) => {
+    const key = String(line.usage_line_id)
+    const tracking = String(line.tracking_type ?? '').toUpperCase()
+    const lotReady = tracking !== 'LOT' || Boolean(qtyLotNo[key] || line.lot_no)
+    return Boolean(qtyScanCode[key]) && lotReady && toNumber(qtyDraft[key]) === toNumber(line.qty)
+  }),
 )
 const canPost = computed(
   () =>
@@ -168,7 +180,13 @@ function persistDraft(): void {
   if (!usageId.value || postedResult.value) return
   window.sessionStorage.setItem(
     draftStorageKey.value,
-    JSON.stringify({ serials: scannedSerials.value, qty: { ...qtyDraft } }),
+    JSON.stringify({
+      serials: scannedSerials.value,
+      qty: { ...qtyDraft },
+      qtyScanCode: { ...qtyScanCode },
+      qtyLotNo: { ...qtyLotNo },
+      qtyAvailableLots: { ...qtyAvailableLots },
+    }),
   )
 }
 
@@ -179,6 +197,9 @@ function restoreDraft(): void {
     const parsed = JSON.parse(raw) as {
       serials?: ScanPreview[]
       qty?: Record<string, number>
+      qtyScanCode?: Record<string, string>
+      qtyLotNo?: Record<string, string>
+      qtyAvailableLots?: Record<string, StockLotOption[]>
     }
     if (Array.isArray(parsed.serials)) {
       scannedSerials.value = parsed.serials.filter(
@@ -186,6 +207,12 @@ function restoreDraft(): void {
       )
     }
     if (parsed.qty && typeof parsed.qty === 'object') Object.assign(qtyDraft, parsed.qty)
+    if (parsed.qtyScanCode && typeof parsed.qtyScanCode === 'object')
+      Object.assign(qtyScanCode, parsed.qtyScanCode)
+    if (parsed.qtyLotNo && typeof parsed.qtyLotNo === 'object')
+      Object.assign(qtyLotNo, parsed.qtyLotNo)
+    if (parsed.qtyAvailableLots && typeof parsed.qtyAvailableLots === 'object')
+      Object.assign(qtyAvailableLots, parsed.qtyAvailableLots)
   } catch {
     window.sessionStorage.removeItem(draftStorageKey.value)
   }
@@ -195,6 +222,7 @@ function initializeQtyDraft(): void {
   for (const line of qtyLines.value) {
     const key = String(line.usage_line_id)
     if (!(key in qtyDraft)) qtyDraft[key] = 0
+    if (line.lot_no && !(key in qtyLotNo)) qtyLotNo[key] = line.lot_no
   }
 }
 
@@ -243,8 +271,22 @@ async function submitScan(rawCode?: string): Promise<void> {
     const data = asRecord(preview)
     if (data.valid === false)
       throw new Error('Identitas unit tidak valid untuk pengeluaran barang ini.')
-    if (String(data.tracking_type ?? '').toUpperCase() !== 'SERIAL') {
-      throw new Error('Kode bukan unit SERIAL. Barang QTY/LOT dikonfirmasi pada tabel quantity.')
+    const trackingType = String(data.tracking_type ?? '').toUpperCase()
+    if (trackingType !== 'SERIAL') {
+      const lineId = String(data.usage_line_id ?? '')
+      const line = qtyLines.value.find((entry) => String(entry.usage_line_id) === lineId)
+      if (!line) throw new Error('QR barang tidak sesuai dengan dokumen pengeluaran ini.')
+      qtyScanCode[lineId] = String(data.qr_code ?? data.scan_code ?? code)
+      qtyAvailableLots[lineId] = Array.isArray(data.available_lots)
+        ? (data.available_lots as StockLotOption[]).map((lot) => ({
+            lot_no: String(lot.lot_no ?? ''),
+            qty_available: toNumber(lot.qty_available),
+          }))
+        : []
+      if (line.lot_no) qtyLotNo[lineId] = line.lot_no
+      scanNotice.value = `${itemLabel(line)} berhasil divalidasi. Tentukan lot bila diperlukan, lalu isi jumlah.`
+      persistDraft()
+      return
     }
 
     const normalized: ScanPreview = {
@@ -306,7 +348,13 @@ function validateQty(line: UsageLine): void {
 
 function resetDraft(): void {
   scannedSerials.value = []
-  for (const line of qtyLines.value) qtyDraft[String(line.usage_line_id)] = 0
+  for (const line of qtyLines.value) {
+    const key = String(line.usage_line_id)
+    qtyDraft[key] = 0
+    delete qtyScanCode[key]
+    delete qtyLotNo[key]
+    delete qtyAvailableLots[key]
+  }
   scanNotice.value = ''
   success.value = ''
   error.value = ''
@@ -330,6 +378,8 @@ async function postUsage(): Promise<void> {
         qtys: qtyLines.value
           .map((line) => ({
             usage_line_id: line.usage_line_id,
+            scan_code: qtyScanCode[String(line.usage_line_id)],
+            lot_no: qtyLotNo[String(line.usage_line_id)] || line.lot_no || undefined,
             qty: toNumber(qtyDraft[String(line.usage_line_id)]),
           }))
           .filter((line) => line.qty > 0),
@@ -397,7 +447,13 @@ function stopCamera(): void {
 }
 
 watch(
-  () => ({ serials: scannedSerials.value, qty: { ...qtyDraft } }),
+  () => ({
+    serials: scannedSerials.value,
+    qty: { ...qtyDraft },
+    qtyScanCode: { ...qtyScanCode },
+    qtyLotNo: { ...qtyLotNo },
+    qtyAvailableLots: { ...qtyAvailableLots },
+  }),
   () => persistDraft(),
   { deep: true },
 )
@@ -573,7 +629,34 @@ onBeforeUnmount(stopCamera)
                   <small>{{ line.item_code || '-' }}</small>
                 </td>
                 <td>{{ line.tracking_type || 'QTY' }}</td>
-                <td>{{ line.lot_no || '-' }}</td>
+                <td>
+                  <select
+                    v-if="String(line.tracking_type || '').toUpperCase() !== 'SERIAL'"
+                    v-model="qtyLotNo[String(line.usage_line_id)]"
+                    class="field__control scan-lot-select"
+                    :disabled="Boolean(line.lot_no) || !qtyScanCode[String(line.usage_line_id)]"
+                    @change="persistDraft"
+                  >
+                    <option value="">
+                      {{
+                        String(line.tracking_type || '').toUpperCase() === 'LOT'
+                          ? 'Pilih lot/batch *'
+                          : 'Otomatis FIFO (opsional)'
+                      }}
+                    </option>
+                    <option
+                      v-for="lot in qtyAvailableLots[String(line.usage_line_id)] || []"
+                      :key="lot.lot_no || '__NO_LOT__'"
+                      :value="lot.lot_no"
+                    >
+                      {{ lot.lot_no || 'Tanpa lot' }} · tersedia
+                      {{ formatNumber(lot.qty_available) }}
+                    </option>
+                  </select>
+                  <small v-if="String(line.tracking_type || '').toUpperCase() === 'SERIAL'">
+                    Informasi saja
+                  </small>
+                </td>
                 <td>{{ formatNumber(toNumber(line.qty)) }} {{ line.uom_code || '' }}</td>
                 <td>
                   <div class="qty-confirm-control">
@@ -584,12 +667,18 @@ onBeforeUnmount(stopCamera)
                       min="0"
                       :max="toNumber(line.qty)"
                       step="any"
-                      :disabled="Boolean(postedResult)"
+                      :disabled="Boolean(postedResult) || !qtyScanCode[String(line.usage_line_id)]"
                       @change="validateQty(line)"
                     />
                     <button
                       type="button"
-                      :disabled="Boolean(postedResult)"
+                      :disabled="
+                        Boolean(postedResult) ||
+                        !qtyScanCode[String(line.usage_line_id)] ||
+                        (String(line.tracking_type || '').toUpperCase() === 'LOT' &&
+                          !qtyLotNo[String(line.usage_line_id)] &&
+                          !line.lot_no)
+                      "
                       @click="fillRequestedQty(line)"
                     >
                       Gunakan jumlah dokumen
@@ -599,9 +688,14 @@ onBeforeUnmount(stopCamera)
                 <td>
                   <StatusBadge
                     :value="
+                      qtyScanCode[String(line.usage_line_id)] &&
+                      (String(line.tracking_type || '').toUpperCase() !== 'LOT' ||
+                        Boolean(qtyLotNo[String(line.usage_line_id)] || line.lot_no)) &&
                       toNumber(qtyDraft[String(line.usage_line_id)]) === toNumber(line.qty)
                         ? 'VALID'
-                        : 'PENDING'
+                        : toNumber(qtyDraft[String(line.usage_line_id)]) > 0
+                          ? 'PARTIAL'
+                          : 'PENDING'
                     "
                   />
                 </td>
